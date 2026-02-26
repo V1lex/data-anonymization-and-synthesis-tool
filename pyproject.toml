@@ -1,0 +1,17 @@
+[project]
+name = "synthetic-data-anonymizer"
+version = "0.1.0"
+description = "A simple CLI tool for generating synthetic tabular data and anonymizing CSV files."
+requires-python = ">=3.10"
+dependencies = [
+  "typer>=0.12.0",
+  "pandas>=2.0.0",
+  "faker>=24.0.0",
+  "pydantic>=2.0.0"
+]
+
+[project.scripts]
+sda = "sda.cli.app:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
