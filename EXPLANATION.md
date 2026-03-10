@@ -490,3 +490,30 @@
 #### `docs/sprint-4/final-checklist.md`
 - Что это: финальный чек-лист перед сдачей/релизом.
 - Для чего нужен: контроль полноты документации, тестов и ключевого функционала.
+
+---
+
+## Короткий Scope-резюме (Sprint 1 -> Sprint 2 demo)
+
+Подробный документ: `docs/sprint-1/scope.md`.
+
+### В MVP ко 2 спринту входит
+1. `Generate`: выбор одной/нескольких таблиц, выбор количества строк, скачивание CSV.
+Таблицы и колонки:
+- `users.csv`: `user_id`, `first_name`, `last_name`, `full_name`, `email`, `phone`, `city`, `address`, `birth_date`, `registration_date`, `is_active`.
+- `orders.csv`: `order_id`, `user_id`, `order_date`, `status`, `total_amount`, `currency`, `delivery_city`, `delivery_address`, `comment`.
+- `payments.csv`: `payment_id`, `order_id`, `user_id`, `payment_date`, `amount`, `payment_method`, `payment_status`, `transaction_reference`, `payer_email`.
+- `products.csv`: `product_id`, `product_name`, `category`, `price`, `brand`, `supplier_name`, `created_at`, `is_available`.
+- `support_tickets.csv`: `ticket_id`, `user_id`, `created_at`, `topic`, `message_text`, `channel`, `status`, `priority`, `operator_name`, `contact_email`.
+2. `Anonymize`: загрузка любого CSV, анализ колонок, ручной выбор обработки по колонкам, скачивание результата. По умолчанию для колонок `keep`, а `suggest_pii` дает подсказки.
+
+### В post-MVP (спринты 3-4)
+- `Similar`: загрузка CSV, анализ структуры и статистик, генерация похожего synthetic CSV и скачивание.
+- Повышение качества синтеза и сохранения зависимостей.
+- Расширение автоматизации анализа и UX.
+- Доработка надежности и edge-case покрытия.
+
+### Optional
+- Расширенные privacy/quality метрики.
+- Дополнительные форматы и интеграции.
+- Дополнительные доменные шаблоны.
