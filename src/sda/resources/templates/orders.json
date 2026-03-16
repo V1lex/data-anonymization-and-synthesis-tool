@@ -1,0 +1,9 @@
+{
+  "template_id": "orders",
+  "title": "Заказы",
+  "columns": [
+    {"name": "order_id", "provider": "uuid4"},
+    {"name": "user_id", "provider": "context_ref", "ref": "user_id"},
+    {"name": "amount", "provider": "random_int", "min": 100, "max": 10000}
+  ]
+}

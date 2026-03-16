@@ -1,0 +1,9 @@
+{
+  "template_id": "support_tickets",
+  "title": "Тикеты поддержки",
+  "columns": [
+    {"name": "ticket_id", "provider": "uuid4"},
+    {"name": "user_id", "provider": "context_ref", "ref": "user_id"},
+    {"name": "issue", "provider": "sentence"}
+  ]
+}

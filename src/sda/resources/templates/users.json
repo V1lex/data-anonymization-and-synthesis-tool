@@ -1,0 +1,10 @@
+{
+  "template_id": "users",
+  "title": "Пользователи",
+  "columns": [
+    {"name": "user_id", "provider": "uuid4"},
+    {"name": "full_name", "provider": "name"},
+    {"name": "email", "provider": "email"},
+    {"name": "phone", "provider": "phone_number"}
+  ]
+}
