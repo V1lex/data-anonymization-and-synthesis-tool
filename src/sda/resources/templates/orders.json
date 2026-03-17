@@ -10,7 +10,7 @@
       "min": 50, 
       "max": 100000
     },
-    {"name": "order_date", "provider": "date_this_year"},
+    {"name": "order_date", "provider": "date_time_between"},
     {
       "name": "currency", 
       "provider": "random_element", 
