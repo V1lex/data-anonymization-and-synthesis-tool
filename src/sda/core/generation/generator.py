@@ -135,7 +135,12 @@ class DataGenerator:
             ).isoformat()
 
         if provider == "date_of_birth":
-            return self.faker.date_of_birth().isoformat()
+            minimum_age = column.get("minimum_age", 18)
+            maximum_age = column.get("maximum_age", 90)
+            return self.faker.date_of_birth(
+                minimum_age=minimum_age,
+                maximum_age=maximum_age,
+            ).isoformat()
 
         if provider == "boolean":
             return self.faker.boolean()
