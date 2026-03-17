@@ -1,0 +1,21 @@
+{
+  "template_id": "support_tickets",
+  "title": "Тикеты поддержки",
+  "columns": [
+    {"name": "ticket_id", "provider": "uuid4"},
+    {"name": "user_id", "provider": "context_ref", "ref": "user_id"},
+    {"name": "issue", "provider": "sentence"},
+    {"name": "created_at", "provider": "date_time_between"},
+    {
+      "name": "status", 
+      "provider": "random_element", 
+      "elements": ["new", "in progress", "resolved", "closed"]
+    },
+    {
+      "name": "priority", 
+      "provider": "random_element", 
+      "elements": ["low", "medium", "high"]
+    },
+    {"name": "operator_name", "provider": "name"}
+  ]
+}

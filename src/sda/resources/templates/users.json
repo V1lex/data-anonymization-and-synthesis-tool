@@ -1,0 +1,14 @@
+{
+  "template_id": "users",
+  "title": "Пользователи",
+  "columns": [
+    {"name": "user_id", "provider": "uuid4"},
+    {"name": "full_name", "provider": "name"},
+    {"name": "email", "provider": "email"},
+    {"name": "phone", "provider": "phone_number"},
+    {"name": "city", "provider": "city"},
+    {"name": "address", "provider": "address"},
+    {"name": "birth_date", "provider": "date_of_birth", "minimum_age": 18, "maximum_age": 90},
+    {"name": "registration_date", "provider": "date_time_between"}
+  ]
+}
