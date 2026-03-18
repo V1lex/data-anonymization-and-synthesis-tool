@@ -1,6 +1,6 @@
-# Schemas Sprint 1 (MVP)
+﻿# Схемы Sprint 1 (MVP)
 
-## 1. Generate Request Schema
+## 1. Схема запроса Generate
 ```json
 {
   "template": "string, required",
@@ -10,13 +10,12 @@
 }
 ```
 
-Validation:
-1. `template` must be one of supported templates.
-2. `rows` must be positive.
-3. `delimiter` must be a single-character CSV delimiter.
+Валидация:
+1. `template` должен быть из поддерживаемого списка.
+2. `rows` должен быть положительным.
+3. `delimiter` должен быть одиночным символом-разделителем CSV.
 
-## 2. Anonymize Rules Schema
-Rules map:
+## 2. Схема правил Anonymize
 ```json
 {
   "<column_name>": {
@@ -26,12 +25,12 @@ Rules map:
 }
 ```
 
-Rules notes:
-1. `params` is optional and method-specific.
-2. If column has no explicit rule, default is `keep`.
-3. Unknown column in rules should fail validation.
+Правила:
+1. `params` опционален и зависит от метода.
+2. Если правило для колонки не указано, используется `keep`.
+3. Неизвестная колонка в `rules` должна приводить к ошибке валидации.
 
-## 3. Suggest Response Schema
+## 3. Схема ответа Suggest
 ```json
 {
   "columns": [
@@ -45,9 +44,9 @@ Rules notes:
 }
 ```
 
-## 4. CSV Output Schemas
+## 4. Схемы CSV на выходе
 
-### 4.1 users.csv
+### 4.1 `users.csv`
 1. `user_id`
 2. `first_name`
 3. `last_name`
@@ -60,7 +59,7 @@ Rules notes:
 10. `registration_date`
 11. `is_active`
 
-### 4.2 orders.csv
+### 4.2 `orders.csv`
 1. `order_id`
 2. `user_id`
 3. `order_date`
@@ -71,7 +70,7 @@ Rules notes:
 8. `delivery_address`
 9. `comment`
 
-### 4.3 payments.csv
+### 4.3 `payments.csv`
 1. `payment_id`
 2. `order_id`
 3. `user_id`
@@ -82,7 +81,7 @@ Rules notes:
 8. `transaction_reference`
 9. `payer_email`
 
-### 4.4 products.csv
+### 4.4 `products.csv`
 1. `product_id`
 2. `product_name`
 3. `category`
@@ -92,7 +91,7 @@ Rules notes:
 7. `created_at`
 8. `is_available`
 
-### 4.5 support_tickets.csv
+### 4.5 `support_tickets.csv`
 1. `ticket_id`
 2. `user_id`
 3. `created_at`
@@ -104,14 +103,14 @@ Rules notes:
 9. `operator_name`
 10. `contact_email`
 
-## 5. Error Schema (baseline)
+## 5. Базовая схема ошибки
 ```json
 {
   "detail": "string"
 }
 ```
 
-Optional extension:
+Расширение (опционально):
 ```json
 {
   "detail": "string",

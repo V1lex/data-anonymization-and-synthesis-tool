@@ -1,17 +1,17 @@
-# API Contracts Sprint 1 (MVP)
+﻿# API-контракты Sprint 1 (MVP)
 
-## 1. Conventions
-1. Base URL: `/api/v1` (or project default prefix if configured differently).
-2. Success response for file-producing endpoints: `200` + `text/csv`.
-3. Validation errors: `422` (framework validation) or `400` (domain validation).
-4. Method mismatch: `405`.
+## 1. Общие правила
+1. Базовый префикс API: `/api/v1` (или префикс по настройке приложения).
+2. Успех для endpoint'ов, отдающих файл: `200` + `text/csv`.
+3. Ошибки валидации: `422`; доменные ошибки: `400`.
+4. Неверный HTTP-метод: `405`.
 
-## 2. Endpoints
+## 2. Endpoint'ы
 
 ### 2.1 Health
 `GET /health`
 
-Response `200`:
+Успех `200`:
 ```json
 {
   "status": "ok"
@@ -21,7 +21,7 @@ Response `200`:
 ### 2.2 Generate CSV
 `POST /generate`
 
-Request body:
+Пример запроса:
 ```json
 {
   "template": "users",
@@ -31,26 +31,25 @@ Request body:
 }
 ```
 
-Response `200`:
-Headers:
+Успех `200`:
 1. `Content-Type: text/csv`
 2. `Content-Disposition: attachment; filename="<template>.csv"`
+3. Тело ответа: CSV-байты.
 
-Body: CSV bytes.
-
-Validation errors:
-1. Unknown template -> `400`/`422`.
-2. Invalid `rows` (`<=0`) -> `400`/`422`.
+Ошибки:
+1. Неизвестный шаблон -> `400/422`.
+2. `rows <= 0` -> `400/422`.
+3. Некорректный `delimiter` -> `400/422`.
 
 ### 2.3 Anonymize CSV
 `POST /anonymize`
 
-Request:
+Запрос:
 1. `multipart/form-data`
-2. Field `file`: uploaded CSV
-3. Field `rules`: JSON object (column -> method config)
+2. Поле `file`: CSV-файл
+3. Поле `rules`: JSON-объект (`колонка -> метод`)
 
-Example `rules`:
+Пример `rules`:
 ```json
 {
   "email": { "method": "mask" },
@@ -60,26 +59,24 @@ Example `rules`:
 }
 ```
 
-Response `200`:
-Headers:
+Успех `200`:
 1. `Content-Type: text/csv`
 2. `Content-Disposition: attachment; filename="anonymized.csv"`
+3. Тело ответа: анонимизированный CSV.
 
-Body: anonymized CSV bytes.
+Ошибки:
+1. Пустой/битый CSV -> `400/422`.
+2. Неизвестная колонка в `rules` -> `400/422`.
+3. Неподдерживаемый `method` -> `400/422`.
 
-Validation errors:
-1. Empty/malformed CSV -> `400`/`422`.
-2. Unknown column in rules -> `400`/`422`.
-3. Unsupported method -> `400`/`422`.
-
-### 2.4 Suggest PII (supporting endpoint)
+### 2.4 Suggest PII (вспомогательный endpoint)
 `POST /suggest`
 
-Request:
+Запрос:
 1. `multipart/form-data`
-2. Field `file`: uploaded CSV
+2. Поле `file`: CSV-файл
 
-Response `200`:
+Успех `200`:
 ```json
 {
   "columns": [
@@ -93,26 +90,24 @@ Response `200`:
 }
 ```
 
-Notes:
-1. Suggestions are advisory; user still chooses final anonymization rules.
-2. Default fallback for unspecified columns in Anonymize is `keep`.
+Примечания:
+1. Подсказки рекомендательные, финальный выбор всегда за пользователем.
+2. Колонки без правила в `anonymize` обрабатываются как `keep`.
 
 ### 2.5 Similar/Synthesize (post-MVP)
 `POST /similar`
 
-Status in Sprint 1 docs: contract draft only, implementation planned post-MVP.
+Статус в Sprint 1: черновик контракта, реализация после MVP.
 
-## 3. Error Response Format (recommended baseline)
+## 3. Формат ошибки
 ```json
 {
-  "detail": "human-readable error message"
+  "detail": "читаемое сообщение об ошибке"
 }
 ```
 
-If domain-specific structured errors are used, they must still include readable `detail`.
-
-## 4. File Download Contract
-Applies to `POST /generate` and `POST /anonymize`:
-1. Response must be directly downloadable as `.csv`.
-2. Filename is always provided in `Content-Disposition`.
-3. CSV encoding is UTF-8 unless explicitly configured otherwise.
+## 4. Контракт скачивания файлов
+Применяется к `POST /generate` и `POST /anonymize`:
+1. Ответ должен скачиваться как `.csv`.
+2. Имя файла задается через `Content-Disposition`.
+3. Кодировка CSV по умолчанию: UTF-8.

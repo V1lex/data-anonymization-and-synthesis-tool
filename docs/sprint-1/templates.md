@@ -1,14 +1,14 @@
-# Templates Catalog Sprint 1 (MVP)
+﻿# Каталог шаблонов Sprint 1 (MVP)
 
-## 1. Goal
-Provide a single source of truth for generation templates used in MVP demo.
+## 1. Цель
+Единый источник правды по шаблонам генерации, используемым в MVP-демо.
 
-## 2. Supported Templates
+## 2. Поддерживаемые шаблоны
 
 ### 2.1 `users`
-Output file: `users.csv`
+Выходной файл: `users.csv`
 
-Columns:
+Колонки:
 1. `user_id`
 2. `first_name`
 3. `last_name`
@@ -22,9 +22,9 @@ Columns:
 11. `is_active`
 
 ### 2.2 `orders`
-Output file: `orders.csv`
+Выходной файл: `orders.csv`
 
-Columns:
+Колонки:
 1. `order_id`
 2. `user_id`
 3. `order_date`
@@ -36,9 +36,9 @@ Columns:
 9. `comment`
 
 ### 2.3 `payments`
-Output file: `payments.csv`
+Выходной файл: `payments.csv`
 
-Columns:
+Колонки:
 1. `payment_id`
 2. `order_id`
 3. `user_id`
@@ -50,9 +50,9 @@ Columns:
 9. `payer_email`
 
 ### 2.4 `products`
-Output file: `products.csv`
+Выходной файл: `products.csv`
 
-Columns:
+Колонки:
 1. `product_id`
 2. `product_name`
 3. `category`
@@ -63,9 +63,9 @@ Columns:
 8. `is_available`
 
 ### 2.5 `support_tickets`
-Output file: `support_tickets.csv`
+Выходной файл: `support_tickets.csv`
 
-Columns:
+Колонки:
 1. `ticket_id`
 2. `user_id`
 3. `created_at`
@@ -77,15 +77,14 @@ Columns:
 9. `operator_name`
 10. `contact_email`
 
-## 3. Template Storage
-Template files location:
+## 3. Где хранятся шаблоны
 1. `src/sda/resources/templates/users.json`
 2. `src/sda/resources/templates/orders.json`
 3. `src/sda/resources/templates/payments.json`
 4. `src/sda/resources/templates/products.json`
 5. `src/sda/resources/templates/support_tickets.json`
 
-## 4. MVP Constraints
-1. Template names are case-sensitive.
-2. Unknown template must return validation error.
-3. Generated CSV must strictly follow the declared column order.
+## 4. Ограничения MVP
+1. Имена шаблонов чувствительны к регистру.
+2. Неизвестный шаблон должен возвращать ошибку валидации.
+3. Порядок колонок на выходе строго совпадает с описанием шаблона.

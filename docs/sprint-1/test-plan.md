@@ -1,100 +1,101 @@
-# Test Plan Sprint 1 (MVP)
+﻿# Тест-план Sprint 1 (MVP)
 
-## 1. Purpose
-Document the minimum test set and acceptance criteria for MVP so that Sprint 2 can build smoke/e2e tests without extra clarification.
+## 1. Цель
+Зафиксировать минимальный набор проверок и критерии приемки для MVP так, чтобы во 2 спринте можно было сразу строить smoke/e2e без устных уточнений.
 
-## 2. In Scope (MVP)
-1. Generate CSV from predefined templates.
-2. Anonymize any uploaded CSV by per-column rules.
-3. Download resulting CSV from Generate/Anonymize flows.
-4. Basic error handling for invalid input.
+## 2. Область покрытия (In Scope)
+1. Генерация CSV по преднастроенным шаблонам.
+2. Анонимизация любого загруженного CSV по правилам на уровне колонок.
+3. Скачивание результата из сценариев Generate/Anonymize.
+4. Базовая обработка ошибок при невалидном вводе.
 
-## 3. Out of Scope (Sprint 1)
-1. Load/performance testing.
-2. Security pentest.
-3. Similar/Synthesize quality validation (post-MVP).
+## 3. Вне области (Out of Scope) для Sprint 1
+1. Нагрузочное и производительное тестирование.
+2. Полноценное security/pentest тестирование.
+3. Валидация качества ветки Similar/Synthesize (post-MVP).
 
-## 4. Test Levels
-1. Contract/API checks (HTTP status, payload schema, headers).
-2. Functional checks (CSV structure, row count, applied rules).
-3. Negative checks (invalid files/params/methods).
-4. Smoke flow checks (happy paths end-to-end).
+## 4. Уровни тестирования
+1. Contract/API: статусы, заголовки, форматы запросов/ответов.
+2. Functional: структура CSV, количество строк, применение правил.
+3. Negative: ошибочные форматы, методы, параметры.
+4. Smoke/E2E: базовые сквозные happy path сценарии.
 
-## 5. Entry/Exit Criteria
+## 5. Entry / Exit criteria
 ### Entry
-1. Sprint-1 docs are approved (`scope`, `architecture`, `api-contracts`, `schemas`, `templates`).
-2. Endpoints are available in local environment.
+1. Согласованы документы Sprint 1: `scope`, `architecture`, `api-contracts`, `schemas`, `templates`.
+2. Эндпоинты доступны в локальной среде.
 
 ### Exit
-1. All acceptance criteria from section 6 are green.
-2. No blocker/critical defects in MVP flows.
-3. Smoke test checklist from section 8 is executable without verbal handover.
+1. Все критерии приемки из раздела 6 проходят.
+2. Нет blocker/critical дефектов в ветках MVP.
+3. Чеклист smoke из раздела 8 выполняется без устной передачи контекста.
 
-## 6. Acceptance Criteria
+## 6. Acceptance criteria
 
-### 6.1 Generate CSV
-1. Given a valid generate request with known template and `rows > 0`, API returns `200`.
-2. Response has `Content-Type: text/csv`.
-3. Response has download header (`Content-Disposition` with filename ending in `.csv`).
-4. CSV has header row matching template schema exactly.
-5. CSV has exactly requested number of data rows.
-6. CSV is parseable by standard CSV reader with configured delimiter.
-7. For unknown template, API returns client error (`400`/`422`) with readable message.
-8. For `rows <= 0`, API returns client error (`400`/`422`).
+### 6.1 Генерация CSV (Generate)
+1. При валидном запросе (`template` известен, `rows > 0`) API возвращает `200`.
+2. Ответ содержит `Content-Type: text/csv`.
+3. Ответ содержит `Content-Disposition` с именем файла и расширением `.csv`.
+4. Заголовок CSV строго соответствует схеме выбранного шаблона.
+5. Количество строк данных точно равно `rows`.
+6. CSV парсится стандартным CSV-ридером с указанным `delimiter`.
+7. Неизвестный `template` -> `400/422` и читаемое сообщение об ошибке.
+8. `rows <= 0` -> `400/422`.
+9. Некорректный `delimiter` -> `400/422`.
 
-### 6.2 Anonymize Any CSV
-1. Given a valid CSV upload and valid per-column rules, API returns `200`.
-2. Output CSV keeps same column order as input.
-3. Output CSV keeps same number of rows as input.
-4. Rule `keep` leaves values unchanged.
-5. Rule `mask` changes value format to masked representation (non-empty, deterministic policy).
-6. Rule `redact` removes/hides value according to contract.
-7. Rule `pseudo` replaces values consistently: same input value in same column -> same output value.
-8. If rule references unknown column, API returns client error (`400`/`422`) with column name.
-9. If rule method is unsupported, API returns client error (`400`/`422`) with allowed methods.
+### 6.2 Анонимизация любого CSV (Anonymize)
+1. При валидной загрузке CSV и валидных `rules` API возвращает `200`.
+2. Порядок колонок в выходном CSV совпадает с входным.
+3. Количество строк в выходном CSV равно количеству строк во входном.
+4. Метод `keep` не меняет значение.
+5. Метод `mask` меняет исходное значение на маскированный вид.
+6. Метод `redact` скрывает/удаляет значение согласно контракту.
+7. Метод `pseudo` работает консистентно: одинаковый вход -> одинаковый выход в рамках колонки.
+8. Неизвестная колонка в `rules` -> `400/422` с указанием колонки.
+9. Неподдерживаемый `method` -> `400/422` с подсказкой по допустимым методам.
 
-### 6.3 Result Download Scenario
-1. User can trigger download after successful Generate response.
-2. User can trigger download after successful Anonymize response.
-3. Downloaded file opens as valid CSV in spreadsheet/editor.
-4. Filename in `Content-Disposition` is not empty and extension is `.csv`.
-5. Large enough sample file (at least 100 rows) downloads without truncation.
+### 6.3 Сценарий скачивания результата
+1. После успешного `POST /generate` пользователь может скачать CSV.
+2. После успешного `POST /anonymize` пользователь может скачать CSV.
+3. Скачанный файл открывается как валидный CSV в редакторе/табличном процессоре.
+4. `Content-Disposition` содержит непустое имя файла с `.csv`.
+5. Файл на объеме не менее 100 строк скачивается без обрезания.
 
-## 7. Negative Test Cases (Required)
+## 7. Негативные кейсы (обязательные)
 
-### CSV/Input Negatives
-1. Empty file body -> client error (`400`/`422`), explicit message "empty CSV" equivalent.
-2. CSV with header only and no data rows -> defined behavior (either valid empty dataset or explicit validation error) must be stable and documented.
-3. Malformed CSV with broken quotes/newlines -> client error (`400`/`422`).
-4. Wrong delimiter (for example semicolon file treated as comma) -> deterministic behavior:
-If auto-detect is enabled: parsing succeeds with detected delimiter.
-If auto-detect is disabled: parsing fails with readable delimiter error.
-5. Non-CSV file with `.csv` name -> client error (`400`/`422`) if parsing fails.
+### 7.1 CSV / Input
+1. Пустое тело файла -> `400/422`, явная ошибка «пустой CSV».
+2. Только заголовок без строк данных -> стабильное и задокументированное поведение (валидный пустой набор или валидационная ошибка).
+3. Битый CSV (кавычки/переносы) -> `400/422`.
+4. Плохой delimiter (например, `;` файл читается как `,`) -> детерминированное поведение:
+- при autodetect: корректный разбор;
+- без autodetect: ошибка разбора с понятным текстом.
+5. Не-CSV файл с расширением `.csv` -> `400/422` при ошибке парсинга.
 
-### API Negatives
-1. Wrong HTTP method on endpoint -> `405 Method Not Allowed`.
-2. Missing required request fields -> `422 Unprocessable Entity`.
-3. Invalid JSON type for fields (`rows` as string, `rules` as array when object expected) -> `422`.
-4. Oversized request (if limit configured) -> `413` or documented equivalent.
+### 7.2 API
+1. Неправильный HTTP-метод на endpoint -> `405 Method Not Allowed`.
+2. Отсутствуют обязательные поля запроса -> `422 Unprocessable Entity`.
+3. Неверные типы (`rows` строкой, `rules` массивом) -> `422`.
+4. Слишком большой запрос (если лимит настроен) -> `413` или документированный эквивалент.
 
-### Domain Negatives
-1. Unknown template name in Generate -> `400`/`422`.
-2. Invalid anonymization method (`md5`, `encrypt`, etc.) -> `400`/`422`.
-3. Rules payload includes duplicate/conflicting config for one column -> deterministic validation error.
+### 7.3 Domain
+1. Неизвестный шаблон в Generate -> `400/422`.
+2. Неверный метод анонимизации (`md5`, `encrypt` и т.п.) -> `400/422`.
+3. Конфликтующие/дублирующиеся настройки по одной колонке -> предсказуемая ошибка валидации.
 
-## 8. Smoke Checklist (for Sprint 2)
-1. `GET /health` returns `200`.
-2. Generate flow: request template + rows -> download CSV -> validate header and row count.
-3. Anonymize flow: upload CSV + rules -> download CSV -> validate row count and transformed values.
-4. Negative smoke: send wrong HTTP method and verify `405`.
-5. Negative smoke: upload empty CSV and verify expected client error.
+## 8. Smoke checklist для Sprint 2
+1. `GET /health` возвращает `200`.
+2. Generate: запрос -> скачивание -> проверка заголовка и количества строк.
+3. Anonymize: загрузка CSV + правила -> скачивание -> проверка количества строк и трансформаций.
+4. Negative smoke: неправильный HTTP-метод -> `405`.
+5. Negative smoke: пустой CSV -> ожидаемая ошибка клиента.
 
-## 9. E2E Scenarios (Baseline)
-1. Generate users CSV (50 rows), open file, verify schema and count.
-2. Upload generated users CSV to Anonymize, apply mixed rules (`keep/mask/redact/pseudo`), download and validate transformations.
-3. Upload malformed CSV and verify non-200 response with actionable error text.
+## 9. Базовые E2E-сценарии
+1. Generate `users` на 50 строк, проверка схемы и количества.
+2. Загрузка сгенерированного `users.csv` в Anonymize, смешанные правила (`keep/mask/redact/pseudo`), проверка результата.
+3. Загрузка битого CSV, проверка не-200 ответа и понятного текста ошибки.
 
 ## 10. Definition of Done (T009)
-1. Document contains acceptance criteria for Generate, Anonymize, and download scenario.
-2. Required negative cases are listed (empty CSV, bad delimiter, wrong method, invalid rule/template).
-3. Document is sufficient as direct input to smoke/e2e test implementation in Sprint 2.
+1. Документ содержит acceptance criteria для Generate, Anonymize и сценария скачивания.
+2. Негативные кейсы перечислены явно: пустой CSV, плохой delimiter, неправильный метод, неверный HTTP-метод, невалидный template/rules.
+3. Документ пригоден как прямой вход для реализации smoke/e2e тестов во 2 спринте.
