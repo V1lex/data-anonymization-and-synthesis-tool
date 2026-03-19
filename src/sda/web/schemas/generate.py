@@ -60,10 +60,10 @@ class GenerateTemplateSummary(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
     description: str | None = Field(default=None, min_length=1, max_length=512)
     preview_columns: list[str] | None = Field(default=None, min_length=1, max_length=MAX_PREVIEW_COLUMNS)
-
+    
     @field_validator("preview_columns")
     @classmethod
-    def validate_columns(cls, value: list[str] | None) -> list[str] | None:
+    def validate_preview_columns(cls, value: list[str] | None) -> list[str] | None:
         if value is None:
             return value
         normalized: list[str] = []
