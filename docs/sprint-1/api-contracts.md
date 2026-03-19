@@ -1,15 +1,25 @@
-# API Contracts Sprint 1
+# API-контракты Sprint 1
 
-Документ фиксирует HTTP-контракты для веток `Generate`, `Anonymize` и `Similar`. Контракт задуман как синхронный API без отдельного polling/job-слоя: frontend получает JSON и при необходимости сразу собирает downloadable CSV/ZIP из `base64`.
+Документ фиксирует HTTP-контракты для веток `Generate`, `Anonymize` и `Similar`. Контракт рассчитан на синхронный API без отдельного слоя фоновых задач: клиент получает JSON и при необходимости сразу собирает скачиваемый CSV или ZIP из `base64`.
 
 ## Общие правила
 
-- Base URL: `/api/v1`
+- Базовый префикс API: `/api/v1`
 - Формат успешных ответов: `application/json`
 - Формат ошибок: `application/json`
 - Кодировка CSV upload/download: `utf-8`
-- Все идентификаторы `upload_id` и `analysis_id` считаются временными server-side token’ами для одного сценария работы пользователя.
+- Все идентификаторы `upload_id` и `analysis_id` считаются временными идентификаторами для одного пользовательского сценария.
 - Для бинарных результатов используется `base64` внутри JSON, потому что отдельных download endpoint’ов в Sprint 1 нет.
+- Общие лимиты Generate:
+  - `row_count` для одного файла: `1..10000`
+  - если запрошен один шаблон, backend возвращает один CSV в `content_base64`
+  - если запрошено несколько шаблонов, backend возвращает ZIP-архив в `archive_base64`
+- Общие методы анонимизации в Sprint 1:
+  - `keep`
+  - `mask`
+  - `redact`
+  - `pseudonymize`
+  - `generalize_date`
 
 ## Общая схема ошибки
 
@@ -26,9 +36,9 @@
 
 ## GET /health
 
-- Method: `GET`
-- Path: `/health`
-- Request body: нет
+- Метод: `GET`
+- Путь: `/health`
+- Тело запроса: нет
 
 Ответ `200 OK`:
 
@@ -44,9 +54,9 @@
 
 ## GET /generate/templates
 
-- Method: `GET`
-- Path: `/generate/templates`
-- Request body: нет
+- Метод: `GET`
+- Путь: `/generate/templates`
+- Тело запроса: нет
 
 Ответ `200 OK`:
 
@@ -57,9 +67,31 @@
       "template_id": "users",
       "name": "Users",
       "description": "Synthetic user profiles for demo datasets.",
-      "columns": ["user_id", "first_name", "last_name", "email"],
-      "default_rows": 100,
-      "max_rows": 10000
+      "preview_columns": ["user_id", "first_name", "last_name", "email"]
+    },
+    {
+      "template_id": "orders",
+      "name": "Orders",
+      "description": "Synthetic order history linked to users.",
+      "preview_columns": ["order_id", "user_id", "order_date", "status"]
+    },
+    {
+      "template_id": "payments",
+      "name": "Payments",
+      "description": "Synthetic payment transactions linked to orders.",
+      "preview_columns": ["payment_id", "order_id", "amount", "payment_status"]
+    },
+    {
+      "template_id": "products",
+      "name": "Products",
+      "description": "Synthetic product catalog.",
+      "preview_columns": ["product_id", "product_name", "category", "price"]
+    },
+    {
+      "template_id": "support_tickets",
+      "name": "Support tickets",
+      "description": "Synthetic support communication records.",
+      "preview_columns": ["ticket_id", "user_id", "topic", "status"]
     }
   ]
 }
@@ -71,9 +103,9 @@
 
 ## GET /generate/templates/{template_id}
 
-- Method: `GET`
-- Path: `/generate/templates/{template_id}`
-- Path params:
+- Метод: `GET`
+- Путь: `/generate/templates/{template_id}`
+- Параметры пути:
   - `template_id`: `users | orders | payments | products | support_tickets`
 
 Ответ `200 OK`:
@@ -83,12 +115,8 @@
   "template_id": "users",
   "name": "Users",
   "description": "Synthetic user profiles for demo datasets.",
-  "columns": ["user_id", "first_name", "last_name", "email"],
-  "default_rows": 100,
-  "max_rows": 10000,
-  "recommended_rows": [100, 500, 1000, 5000],
-  "relations": ["orders.user_id -> users.user_id"],
-  "columns_detail": [
+  "preview_columns": ["user_id", "first_name", "last_name", "email"],
+  "columns": [
     {
       "name": "email",
       "description": "User email address",
@@ -106,28 +134,24 @@
 
 ## POST /generate/run
 
-- Method: `POST`
-- Path: `/generate/run`
+- Метод: `POST`
+- Путь: `/generate/run`
 - Content-Type: `application/json`
 
-Request body:
+Тело запроса:
 
 ```json
 {
   "items": [
     {
       "template_id": "users",
-      "row_count": 100,
-      "file_name": "users.csv"
+      "row_count": 100
     },
     {
       "template_id": "orders",
-      "row_count": 100,
-      "file_name": "orders.csv"
+      "row_count": 100
     }
-  ],
-  "result_format": "zip_base64",
-  "random_seed": 42
+  ]
 }
 ```
 
@@ -135,10 +159,34 @@ Request body:
 
 - `items` - минимум 1 и максимум 5 шаблонов.
 - Один `template_id` нельзя передавать дважды.
-- `row_count` на файл: `1..10000`.
-- `result_format=csv_base64` допустим только если в `items` ровно один шаблон.
+- `row_count` на каждый файл должен быть в диапазоне `1..10000`.
+- Если в `items` один шаблон, backend возвращает один CSV.
+- Если в `items` больше одного шаблона, backend возвращает ZIP-архив.
 
 Ответ `200 OK`:
+
+Вариант 1, один шаблон:
+
+```json
+{
+  "result_format": "csv_base64",
+  "file_name": "users.csv",
+  "generated_files": [
+    {
+      "template_id": "users",
+      "file_name": "users.csv",
+      "row_count": 100,
+      "content_type": "text/csv"
+    }
+  ],
+  "content_base64": "dXNlcl9pZCxlbWFpbA0K...",
+  "archive_base64": null,
+  "total_rows": 100,
+  "warnings": []
+}
+```
+
+Вариант 2, несколько шаблонов:
 
 ```json
 {
@@ -149,10 +197,16 @@ Request body:
       "template_id": "users",
       "file_name": "users.csv",
       "row_count": 100,
-      "content_base64": "dXNlcl9pZCxlbWFpbA0K...",
+      "content_type": "text/csv"
+    },
+    {
+      "template_id": "orders",
+      "file_name": "orders.csv",
+      "row_count": 100,
       "content_type": "text/csv"
     }
   ],
+  "content_base64": null,
   "archive_base64": "UEsDBBQAAAAI...",
   "total_rows": 200,
   "warnings": []
@@ -162,24 +216,23 @@ Request body:
 Ошибки:
 
 - `400 invalid_template_id` - передан неизвестный template_id.
-- `400 invalid_result_format` - конфликт между `result_format` и количеством файлов.
-- `422 validation_error` - нарушены лимиты `row_count`, `file_name` или структуры body.
+- `422 validation_error` - нарушены лимиты `row_count` или структура body.
 - `500 generation_failed` - генератор не смог построить CSV.
 
 ## POST /anonymize/upload
 
-- Method: `POST`
-- Path: `/anonymize/upload`
+- Метод: `POST`
+- Путь: `/anonymize/upload`
 - Content-Type: `multipart/form-data`
 
-Form fields:
+Поля формы:
 
 - `file`: CSV-файл, обязательный.
-- `delimiter`: optional, 1 символ, по умолчанию `,`.
-- `has_header`: optional boolean, по умолчанию `true`.
-- `suggest`: optional boolean, по умолчанию `true`.
+- `delimiter`: необязательное поле, 1 символ, по умолчанию `,`.
+- `has_header`: необязательный boolean, по умолчанию `true`.
+- `suggest`: необязательный boolean, по умолчанию `true`.
 
-Решение по `suggest`: отдельный endpoint не нужен для Sprint 1. Подсказки PII интегрируются в `/anonymize/upload`, чтобы после upload frontend сразу получил columns + suggested methods и не ждал второй round trip.
+Решение по `suggest`: отдельный endpoint не нужен для Sprint 1. Подсказки PII интегрируются в `/anonymize/upload`, чтобы после загрузки клиент сразу получил колонки и предложенные методы. При этом в документе фиксируем, что позже можно добавить отдельный `POST /suggest/rules`, если подсказки потребуется вызывать повторно без повторной загрузки файла.
 
 Ответ `200 OK`:
 
@@ -226,11 +279,11 @@ Form fields:
 
 ## POST /anonymize/run
 
-- Method: `POST`
-- Path: `/anonymize/run`
+- Метод: `POST`
+- Путь: `/anonymize/run`
 - Content-Type: `application/json`
 
-Request body:
+Тело запроса:
 
 ```json
 {
@@ -245,12 +298,10 @@ Request body:
     },
     {
       "column_name": "birth_date",
-      "method": "generalize_year",
+      "method": "generalize_date",
       "params": {}
     }
-  ],
-  "output_format": "csv_base64",
-  "file_name": "customers_anonymized.csv"
+  ]
 }
 ```
 
@@ -258,8 +309,8 @@ Request body:
 
 - `upload_id` должен ссылаться на ранее загруженный файл.
 - `rules` содержит уникальные `column_name`.
-- Метод `remove` удаляет колонку из результата.
-- Если колонка не передана в `rules`, backend трактует ее как `keep` только если это явно согласовано в реализации; для Sprint 1 рекомендуется frontend отправлять все колонки.
+- Поддерживаемые методы: `keep`, `mask`, `redact`, `pseudonymize`, `generalize_date`.
+- Если колонка не передана в `rules`, backend трактует ее как `keep` только если это явно согласовано в реализации. Для Sprint 1 рекомендуется, чтобы frontend отправлял правила для всех колонок.
 
 Ответ `200 OK`:
 
@@ -268,8 +319,8 @@ Request body:
   "upload_id": "upl_123",
   "file_name": "customers_anonymized.csv",
   "row_count": 850,
-  "column_count": 5,
-  "output_format": "csv_base64",
+  "column_count": 6,
+  "result_format": "csv_base64",
   "content_base64": "ZW1haWwsY2l0eQ0K...",
   "applied_rules": [
     {
@@ -289,16 +340,16 @@ Request body:
 - `404 upload_not_found` - `upload_id` не найден или истек.
 - `400 unknown_column` - правило ссылается на отсутствующую колонку.
 - `400 invalid_rule` - метод не поддерживается для типа колонки.
-- `422 validation_error` - дубликаты колонок, пустые имена, неверный `file_name`.
+- `422 validation_error` - дубликаты колонок, пустые имена или невалидная структура body.
 - `500 anonymization_failed` - ошибка применения правил.
 
 ## POST /similar/analyze
 
-- Method: `POST`
-- Path: `/similar/analyze`
+- Метод: `POST`
+- Путь: `/similar/analyze`
 - Content-Type: `multipart/form-data`
 
-Form fields:
+Поля формы:
 
 - `file`: CSV-файл, обязательный.
 - `preview_rows_limit`: optional integer, по умолчанию `5`, диапазон `1..20`.
@@ -348,19 +399,16 @@ Form fields:
 
 ## POST /similar/run
 
-- Method: `POST`
-- Path: `/similar/run`
+- Метод: `POST`
+- Путь: `/similar/run`
 - Content-Type: `application/json`
 
-Request body:
+Тело запроса:
 
 ```json
 {
   "analysis_id": "ana_123",
-  "target_rows": 500,
-  "output_format": "csv_base64",
-  "random_seed": 42,
-  "file_name": "orders_similar.csv"
+  "target_rows": 500
 }
 ```
 
@@ -368,7 +416,7 @@ Request body:
 
 - `analysis_id` должен ссылаться на результат `/similar/analyze`.
 - `target_rows`: `1..10000`.
-- Sprint 1 использует только `csv_base64`.
+- Результат всегда один CSV-файл.
 
 Ответ `200 OK`:
 
@@ -378,7 +426,7 @@ Request body:
   "file_name": "orders_similar.csv",
   "row_count": 500,
   "column_count": 4,
-  "output_format": "csv_base64",
+  "result_format": "csv_base64",
   "content_base64": "c3RhdHVzLHRvdGFsX2Ftb3VudA0K...",
   "warnings": []
 }

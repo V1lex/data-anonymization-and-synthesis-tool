@@ -1,17 +1,9 @@
-from __future__ import annotations
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from enum import Enum
-
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-
-from sda.web.schemas.generate import ErrorResponse
+from sda.web.schemas.generate import ErrorResponse, ResultFormat
 
 MAX_SIMILAR_ROWS = 10_000
 MAX_SIMILAR_COLUMNS = 128
-
-
-class SimilarOutputFormat(str, Enum):
-    CSV_BASE64 = "csv_base64"
 
 
 class SimilarColumnProfile(BaseModel):
@@ -54,23 +46,6 @@ class SimilarRunRequest(BaseModel):
 
     analysis_id: str = Field(..., min_length=1, max_length=64)
     target_rows: int = Field(..., ge=1, le=MAX_SIMILAR_ROWS)
-    output_format: SimilarOutputFormat = Field(default=SimilarOutputFormat.CSV_BASE64)
-    random_seed: int | None = Field(default=None, ge=0, le=2_147_483_647)
-    file_name: str | None = Field(default=None, min_length=1, max_length=128)
-
-    @field_validator("file_name")
-    @classmethod
-    def validate_file_name(cls, value: str | None) -> str | None:
-        if value is None:
-            return value
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("file_name must not be blank")
-        if "/" in normalized or "\\" in normalized:
-            raise ValueError("file_name must not contain path separators")
-        if not normalized.endswith(".csv"):
-            raise ValueError("file_name must end with .csv")
-        return normalized
 
 
 class SimilarRunResponse(BaseModel):
@@ -80,17 +55,23 @@ class SimilarRunResponse(BaseModel):
     file_name: str = Field(..., min_length=1, max_length=128)
     row_count: int = Field(..., ge=1, le=MAX_SIMILAR_ROWS)
     column_count: int = Field(..., ge=1, le=MAX_SIMILAR_COLUMNS)
-    output_format: SimilarOutputFormat = Field(default=SimilarOutputFormat.CSV_BASE64)
+    result_format: ResultFormat = Field(default=ResultFormat.CSV_BASE64)
     content_base64: str = Field(..., min_length=1)
     warnings: list[str] = Field(default_factory=list, max_length=10)
+
+    @model_validator(mode="after")
+    def validate_result_format(self) -> "SimilarRunResponse":
+        if self.result_format != ResultFormat.CSV_BASE64:
+            raise ValueError("similar responses support only csv_base64")
+        return self
 
 
 __all__ = [
     "ErrorResponse",
+    "ResultFormat",
     "SimilarAnalyzeRequest",
     "SimilarAnalyzeResponse",
     "SimilarColumnProfile",
-    "SimilarOutputFormat",
     "SimilarRunRequest",
     "SimilarRunResponse",
 ]

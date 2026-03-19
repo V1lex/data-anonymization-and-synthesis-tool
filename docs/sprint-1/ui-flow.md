@@ -1,14 +1,12 @@
 # Low-Fi UI Flow Sprint 1
 
-Документ фиксирует экранный путь пользователя до начала верстки и привязан к макетам из `Data Generation Tool Design`.
-
 ## 1. Главная страница
 
 ### Блоки
 
-- Header: логотип/анимация названия, language switcher
-- Hero title
-- 3 action cards:
+- Шапка: логотип или анимация названия, переключатель языка
+- Главный заголовок
+- 3 карточки действий:
   - `Generate`
   - `Anonymize`
   - `Similar`
@@ -19,29 +17,25 @@
 2. Видит три плашки с кратким описанием сценариев.
 3. Переходит в нужную ветку по клику на карточку.
 
-### Состояния
-
-- `empty`: только 3 карточки и описания
-- `loading`: не нужен как отдельный экран, переход мгновенный
-- `error`: глобальный banner только если не удалось загрузить shell приложения
-- `success`: пользователь успешно перешел в нужный раздел
-
 ## 2. Generate
 
 ### Экран и блоки
 
-- Header с кнопкой Back
-- Заголовок и subtitle страницы
-- Summary cards:
-  - selected tables
-  - total rows
-  - output format
-- Список template cards:
-  - checkbox/select table
-  - label + description
-  - preview columns/tags
-  - counter `- / input / +`
-- Primary CTA: `Generate and download`
+- Шапка с кнопкой Back
+- Заголовок и подзаголовок страницы
+- Карточки со сводкой:
+  - количество выбранных таблиц
+  - общее количество строк
+  - формат результата
+- Список карточек шаблонов:
+  - переключатель выбора таблицы
+  - название и описание
+  - превью колонок
+- Основная кнопка запуска и скачивания (`Generate and download`)
+
+Отдельное UX-требование:
+
+- Контрол количества строк не должен быть завязан только на шаг `+1/-1`. Нужен нормальный ввод числа и быстрые шаги изменения, чтобы блок не ломал layout и им было удобно пользоваться на больших значениях.
 
 ### Пользовательский путь
 
@@ -49,151 +43,148 @@
 2. Видит список доступных template’ов: `users`, `orders`, `payments`, `products`, `support_tickets`.
 3. Включает одну или несколько таблиц.
 4. Для каждой выбранной таблицы задает `row_count`.
-5. Видит, как summary cards пересчитывают количество таблиц и total rows.
+5. Видит, как сводка пересчитывает количество таблиц и общее число строк.
 6. Нажимает `Generate and download`.
-7. Frontend отправляет `POST /generate/run`.
+7. Клиент отправляет `POST /generate/run`.
 8. Получает `GenerateRunResponse`.
-9. Если `result_format=csv_base64`, сразу скачивает один CSV.
-10. Если `result_format=zip_base64`, скачивает архив.
+9. Если выбран один шаблон, сразу скачивает один CSV.
+10. Если выбрано несколько шаблонов, скачивает ZIP-архив.
 
 ### Состояния
 
-- `empty`: ни одна таблица не выбрана, CTA disabled или заменен подсказкой `Select at least one`
-- `loading`: overlay spinner на время генерации
-- `error`: inline alert над CTA, например `Template generation failed`
-- `success`: файл скачан, CTA кратко показывает completed state
+- `empty`: ни одна таблица не выбрана, основная кнопка неактивна или заменена подсказкой
+- `loading`: оверлей или спиннер на время генерации
+- `error`: ошибка рядом с основной кнопкой
+- `success`: файл скачан, пользователь может сразу запустить сценарий заново
 
 ## 3. Anonymize
 
-### Экран 1: Upload
+### Экран 1: загрузка файла
 
 Блоки:
 
-- Header с Back
-- Title + subtitle
-- Большая dropzone / upload card
-- Текст про допустимый формат `CSV only`
+- Шапка с Back
+- Заголовок и подзаголовок
+- Большая зона загрузки файла
+- Текст про допустимый формат CSV
 
 Шаги:
 
 1. Пользователь открывает `Anonymize`.
 2. Загружает CSV.
-3. Frontend вызывает `POST /anonymize/upload`.
-4. Backend возвращает `upload_id`, columns, preview rows и suggestions.
+3. Клиент вызывает `POST /anonymize/upload`.
+4. Сервер возвращает `upload_id`, колонки, `preview_rows` и предложенные методы.
 
 Состояния:
 
-- `empty`: только upload area
-- `loading`: spinner во время upload/parsing
-- `error`: ошибка загрузки/парсинга под dropzone
-- `success`: переход ко второму экрану без отдельного route
+- `empty`: показана только зона загрузки
+- `loading`: спиннер во время загрузки и разбора файла
+- `error`: ошибка загрузки или парсинга рядом с зоной загрузки
+- `success`: переход ко второму экрану без отдельного маршрута
 
-### Экран 2: Column review and rules
+### Экран 2: просмотр колонок и настройка правил
 
 Блоки:
 
-- File summary card:
-  - file name
-  - columns count
-  - records count
-  - toggle preview show/hide
-- Preview table на 3-5 строк
-- Список column cards:
-  - column name
-  - delete/restore column
-  - набор action chips для методов:
+- Карточка со сводкой по файлу:
+  - имя файла
+  - число колонок
+  - число записей
+  - переключатель показа превью
+- Таблица превью на 3-5 строк
+- Список карточек колонок:
+  - имя колонки
+  - предложенный метод, если он есть
+  - набор кнопок для методов:
     - keep
     - mask
-    - remove
+    - redact
     - pseudonymize
-    - generalize year
-    - generalize date
-- Actions:
-  - upload another
-  - anonymize and download
+    - generalize_date
+- Кнопки действий:
+  - загрузить другой файл
+  - запуск и скачивание (`Anonymize and download`)
 
 Шаги:
 
-1. Пользователь просматривает summary и первые строки файла.
+1. Пользователь просматривает сводку и первые строки файла.
 2. Для каждой колонки либо оставляет suggested/default method, либо меняет вручную.
-3. Может удалить колонку целиком через `remove`.
-4. Нажимает `Anonymize and download`.
-5. Frontend отправляет `POST /anonymize/run` с `upload_id` и полным набором `rules`.
-6. Получает `AnonymizeRunResponse`.
-7. Скачивает готовый CSV.
+3. Нажимает `Anonymize and download`.
+4. Клиент отправляет `POST /anonymize/run` с `upload_id` и полным набором `rules`.
+5. Получает `AnonymizeRunResponse`.
+6. Скачивает готовый CSV.
 
 Состояния:
 
-- `empty`: после upload это состояние не используется
-- `loading`: spinner на время применения правил
-- `error`: inline alert у action buttons, например `Unknown column in rules`
-- `success`: файл скачан; опционально сохраняется экран с выбранными rules
+- `loading`: спиннер на время применения правил
+- `error`: ошибка рядом с кнопками действий
+- `success`: файл скачан; экран остается доступным для повторного запуска
 
 ## 4. Similar
 
-### Экран 1: Upload and explanation
+### Экран 1: загрузка и объяснение сценария
 
 Блоки:
 
-- Header с Back
-- Title + subtitle
-- Upload card
-- Secondary info card `How it works`
+- Шапка с Back
+- Заголовок и подзаголовок
+- Карточка загрузки файла
+- Информационный блок с кратким объяснением, как работает сценарий
 
 Шаги:
 
 1. Пользователь открывает `Similar`.
 2. Загружает CSV.
-3. Frontend отправляет `POST /similar/analyze`.
-4. Backend возвращает `analysis_id`, profiles колонок, preview и summary.
+3. Клиент отправляет `POST /similar/analyze`.
+4. Сервер возвращает `analysis_id`, профили колонок, превью и краткую сводку анализа.
 
 Состояния:
 
-- `empty`: upload area + explanatory block
-- `loading`: spinner во время анализа
-- `error`: ошибка upload/analysis под upload area
+- `empty`: зона загрузки и информационный блок
+- `loading`: спиннер во время анализа
+- `error`: ошибка загрузки или анализа рядом с зоной загрузки
 - `success`: показ второго состояния страницы
 
-### Экран 2: Structure preview and generation
+### Экран 2: превью структуры и запуск генерации
 
 Блоки:
 
-- Source file summary card:
-  - file name
-  - column count
-  - record count
-- Column chips / structure preview
-- Analyze summary list
-- Generation params card:
-  - target row count input
-  - quick presets
-- Stats cards:
-  - source records
-  - will generate
-  - increase percentage
-- Actions:
-  - upload another
-  - generate and download similar
+- Карточка со сводкой по исходному файлу:
+  - имя файла
+  - число колонок
+  - число записей
+- Блок превью структуры с колонками
+- Список кратких выводов анализа
+- Карточка параметров генерации:
+  - ввод `target_rows`
+  - быстрые пресеты
+- Карточки со статистикой:
+  - сколько записей в источнике
+  - сколько будет сгенерировано
+  - процент изменения
+- Кнопки действий:
+  - загрузить другой файл
+  - запуск и скачивание похожего файла (`Generate and download similar`)
 
 Шаги:
 
-1. Пользователь смотрит структуру и summary анализа.
+1. Пользователь смотрит структуру и сводку анализа.
 2. Задает `target_rows`.
-3. Нажимает `Generate and download similar`.
-4. Frontend отправляет `POST /similar/run` с `analysis_id`.
+3. Нажимает кнопку запуска и скачивания похожего файла.
+4. Клиент отправляет `POST /similar/run` с `analysis_id`.
 5. Получает `SimilarRunResponse`.
 6. Скачивает CSV.
 
 Состояния:
 
 - `empty`: до upload
-- `loading`: spinner во время синтеза
-- `error`: ошибка анализа или генерации рядом с actions
+- `loading`: спиннер во время синтеза
+- `error`: ошибка анализа или генерации рядом с кнопками действий
 - `success`: файл скачан
 
 ## 5. Общие UI-правила состояний
 
-- Любой async шаг должен блокировать повторный submit до завершения.
-- Ошибки API показываются рядом с текущим действием, не только в console.
+- Любой асинхронный шаг должен блокировать повторный submit до завершения.
+- Ошибки API показываются рядом с текущим действием, а не только в console.
 - Успех не должен уводить пользователя со страницы: после скачивания экран остается доступным для повтора.
 - Для всех трех веток нужен единый визуальный паттерн состояний: `empty -> loading -> error/success`.

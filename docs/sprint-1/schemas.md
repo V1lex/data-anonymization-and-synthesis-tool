@@ -1,30 +1,28 @@
-# Schemas Sprint 1
+# Схемы Sprint 1
 
-Документ описывает Pydantic-модели, которые используются как source of truth для web-роутеров. Все схемы лежат в `src/sda/web/schemas/` и рассчитаны на `pydantic v2`.
+Документ описывает Pydantic-модели, которые используются как источник истины для web-роутеров. Все схемы лежат в `src/sda/web/schemas/` и рассчитаны на `pydantic v2`.
 
 ## Общие enum и ограничения
 
-### Result format
+### Формат результата
 
 - `csv_base64` - один CSV-файл, закодированный в `content_base64`.
-- `zip_base64` - ZIP-архив для multi-file generate-сценария.
+- `zip_base64` - ZIP-архив для сценария генерации нескольких файлов.
 
-### Anonymization methods
+### Методы анонимизации
 
 - `keep`
 - `mask`
-- `remove`
+- `redact`
 - `pseudonymize`
-- `generalize_year`
 - `generalize_date`
 
 ### Лимиты
 
-- Generate `row_count`: `1..10000`
-- Upload/Similar входной CSV: до `10000` строк
+- `row_count` в Generate: `1..10000`
+- Входной CSV для upload/analyze: до `10000` строк
 - Колонки в upload/analyze: до `128`
 - Preview rows: до `5` в ответе, до `20` в запросе analyze
-- Имена файлов результата: без path separators, обязательный суффикс `.csv`
 
 ## `src/sda/web/schemas/generate.py`
 
@@ -32,10 +30,8 @@
 
 - `template_id: GenerateTemplateId`
 - `name: str`
-- `description: str`
-- `columns: list[str]`
-- `default_rows: int`
-- `max_rows: int`
+- `description: str | None`
+- `preview_columns: list[str] | None`
 
 Использование:
 
@@ -43,16 +39,15 @@
 
 Валидации:
 
-- `columns` не пустой, уникальный список
+- `preview_columns` содержит короткий список колонок для превью, а не полный список
+- `preview_columns` не пустой и не содержит дубликатов
 - в именах колонок нет control characters
 
 ### `GenerateTemplateDetail`
 
 Наследует `GenerateTemplateSummary`, добавляет:
 
-- `recommended_rows: list[int]`
-- `relations: list[str]`
-- `columns_detail: list[GenerateTemplateColumn]`
+- `columns: list[GenerateTemplateColumn]`
 
 Использование:
 
@@ -61,20 +56,18 @@
 ### `GenerateRunRequest`
 
 - `items: list[GenerateRunItem]`
-- `result_format: ResultFormat = zip_base64`
-- `random_seed: int | None`
 
 Валидации:
 
-- хотя бы один item
+- хотя бы один элемент в `items`
 - один и тот же `template_id` нельзя запрашивать дважды
-- `result_format=csv_base64` разрешен только для одного item
 
 ### `GenerateRunResponse`
 
 - `result_format: ResultFormat`
 - `file_name: str`
 - `generated_files: list[GeneratedFile]`
+- `content_base64: str | None`
 - `archive_base64: str | None`
 - `total_rows: int`
 - `warnings: list[str]`
@@ -82,6 +75,12 @@
 Использование:
 
 - ответ `POST /generate/run`
+
+Поведение:
+
+- если в запросе один шаблон, backend возвращает `result_format=csv_base64` и заполняет `content_base64`
+- если в запросе несколько шаблонов, backend возвращает `result_format=zip_base64` и заполняет только `archive_base64`
+- `generated_files` в режиме нескольких файлов содержит только метаданные файлов без дублирования `content_base64`
 
 ## `src/sda/web/schemas/anonymize.py`
 
@@ -113,8 +112,8 @@
 
 Валидации:
 
-- `column_name` trimmed и не пустой
-- допускаются arbitrary params под конкретный метод, но на уровне use-case должен быть дополнительный semantic validation
+- `column_name` нормализуется, обрезается по краям и не может быть пустым
+- допускаются arbitrary params под конкретный метод, но на уровне use-case должна быть дополнительная семантическая проверка
 
 ### `AnonymizeUploadResponse`
 
@@ -137,13 +136,10 @@
 
 - `upload_id: str`
 - `rules: list[AnonymizationRule]`
-- `output_format: OutputFormat = csv_base64`
-- `file_name: str | None`
 
 Валидации:
 
 - `rules` должны ссылаться на уникальные колонки
-- `file_name` не должен содержать путь и должен заканчиваться на `.csv`
 
 ### `AnonymizeRunResponse`
 
@@ -151,7 +147,7 @@
 - `file_name: str`
 - `row_count: int`
 - `column_count: int`
-- `output_format: OutputFormat`
+- `result_format: ResultFormat = csv_base64`
 - `content_base64: str`
 - `applied_rules: list[AnonymizationRule]`
 - `warnings: list[str]`
@@ -159,6 +155,11 @@
 Использование:
 
 - ответ `POST /anonymize/run`
+
+Примечание:
+
+- имя выходного файла генерирует backend
+- результат анонимизации всегда один CSV-файл
 
 ## `src/sda/web/schemas/similar.py`
 
@@ -170,7 +171,7 @@
 
 Использование:
 
-- формальная схема для non-file части `multipart/form-data` запроса `POST /similar/analyze`
+- формальная схема для полей формы без файла в `multipart/form-data` запросе `POST /similar/analyze`
 
 ### `SimilarAnalyzeResponse`
 
@@ -191,14 +192,10 @@
 
 - `analysis_id: str`
 - `target_rows: int`
-- `output_format: SimilarOutputFormat = csv_base64`
-- `random_seed: int | None`
-- `file_name: str | None`
 
 Валидации:
 
 - `target_rows` в диапазоне `1..10000`
-- `file_name` валидируется так же, как в generate/anonymize
 
 ### `SimilarRunResponse`
 
@@ -206,13 +203,18 @@
 - `file_name: str`
 - `row_count: int`
 - `column_count: int`
-- `output_format: SimilarOutputFormat`
+- `result_format: ResultFormat = csv_base64`
 - `content_base64: str`
 - `warnings: list[str]`
 
 Использование:
 
 - ответ `POST /similar/run`
+
+Примечание:
+
+- имя выходного файла генерирует backend
+- результат Similar всегда один CSV-файл
 
 ## Общая ошибка
 
@@ -229,6 +231,6 @@
 
 ## Что важно для роутеров
 
-- Generate/Anonymize/Similar схемы можно импортировать напрямую в FastAPI handlers.
+- Схемы Generate/Anonymize/Similar можно импортировать напрямую в FastAPI-роутеры.
 - Для upload endpoints сам файл будет приниматься через `UploadFile`, а остальные поля формы могут маппиться в schema вручную.
-- Semantic checks, зависящие от содержимого CSV или наличия `upload_id`/`analysis_id`, остаются на уровне use-case, не Pydantic.
+- Семантические проверки, зависящие от содержимого CSV или наличия `upload_id`/`analysis_id`, остаются на уровне use-case, а не Pydantic.

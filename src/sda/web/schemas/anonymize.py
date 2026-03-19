@@ -1,11 +1,9 @@
-from __future__ import annotations
-
 from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from sda.web.schemas.generate import ErrorResponse
+from sda.web.schemas.generate import ErrorResponse, ResultFormat
 
 MAX_CSV_ROWS = 10_000
 MAX_CSV_COLUMNS = 128
@@ -15,14 +13,9 @@ MAX_SAMPLE_VALUES = 5
 class AnonymizationMethod(str, Enum):
     KEEP = "keep"
     MASK = "mask"
-    REMOVE = "remove"
+    REDACT = "redact"
     PSEUDONYMIZE = "pseudonymize"
-    GENERALIZE_YEAR = "generalize_year"
     GENERALIZE_DATE = "generalize_date"
-
-
-class OutputFormat(str, Enum):
-    CSV_BASE64 = "csv_base64"
 
 
 def _normalize_column_name(value: str) -> str:
@@ -91,22 +84,6 @@ class AnonymizeRunRequest(BaseModel):
 
     upload_id: str = Field(..., min_length=1, max_length=64)
     rules: list[AnonymizationRule] = Field(..., min_length=1, max_length=MAX_CSV_COLUMNS)
-    output_format: OutputFormat = Field(default=OutputFormat.CSV_BASE64)
-    file_name: str | None = Field(default=None, min_length=1, max_length=128)
-
-    @field_validator("file_name")
-    @classmethod
-    def validate_file_name(cls, value: str | None) -> str | None:
-        if value is None:
-            return value
-        normalized = value.strip()
-        if not normalized:
-            raise ValueError("file_name must not be blank")
-        if "/" in normalized or "\\" in normalized:
-            raise ValueError("file_name must not contain path separators")
-        if not normalized.endswith(".csv"):
-            raise ValueError("file_name must end with .csv")
-        return normalized
 
     @model_validator(mode="after")
     def validate_unique_columns(self) -> "AnonymizeRunRequest":
@@ -122,11 +99,17 @@ class AnonymizeRunResponse(BaseModel):
     upload_id: str = Field(..., min_length=1, max_length=64)
     file_name: str = Field(..., min_length=1, max_length=128)
     row_count: int = Field(..., ge=1, le=MAX_CSV_ROWS)
-    column_count: int = Field(..., ge=0, le=MAX_CSV_COLUMNS)
-    output_format: OutputFormat = Field(default=OutputFormat.CSV_BASE64)
+    column_count: int = Field(..., ge=1, le=MAX_CSV_COLUMNS)
+    result_format: ResultFormat = Field(default=ResultFormat.CSV_BASE64)
     content_base64: str = Field(..., min_length=1)
     applied_rules: list[AnonymizationRule] = Field(..., min_length=1, max_length=MAX_CSV_COLUMNS)
     warnings: list[str] = Field(default_factory=list, max_length=10)
+
+    @model_validator(mode="after")
+    def validate_result_format(self) -> "AnonymizeRunResponse":
+        if self.result_format != ResultFormat.CSV_BASE64:
+            raise ValueError("anonymize responses support only csv_base64")
+        return self
 
 
 __all__ = [
@@ -136,6 +119,6 @@ __all__ = [
     "AnonymizeRunResponse",
     "AnonymizeUploadResponse",
     "ErrorResponse",
-    "OutputFormat",
+    "ResultFormat",
     "UploadedCsvColumn",
 ]
