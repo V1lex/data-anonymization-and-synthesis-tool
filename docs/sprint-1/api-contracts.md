@@ -298,7 +298,7 @@
     },
     {
       "column_name": "birth_date",
-      "method": "generalize_date",
+      "method": "generalize_year",
       "params": {}
     }
   ]
@@ -309,7 +309,7 @@
 
 - `upload_id` должен ссылаться на ранее загруженный файл.
 - `rules` содержит уникальные `column_name`.
-- Поддерживаемые методы: `keep`, `mask`, `redact`, `pseudonymize`, `generalize_date`.
+- Поддерживаемые методы: `keep`, `mask`, `redact`, `pseudonymize`, `generalize_year`.
 - Если колонка не передана в `rules`, backend трактует ее как `keep` только если это явно согласовано в реализации. Для Sprint 1 рекомендуется, чтобы frontend отправлял правила для всех колонок.
 
 Ответ `200 OK`:
