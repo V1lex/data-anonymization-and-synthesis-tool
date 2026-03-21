@@ -8,7 +8,7 @@ SUPPORTED_DELIMITERS = (",", ";")
 
 
 def detect_delimiter(text: str, default: str = ",") -> str:
-    """Detect delimiter using the first non-empty line."""
+    """Определить разделитель по первой непустой строке."""
     for line in text.splitlines():
         if line.strip():
             comma_count = line.count(",")
@@ -22,7 +22,7 @@ def detect_delimiter(text: str, default: str = ",") -> str:
 
 
 def _read_file_like(source: Any, encoding: str = "utf-8") -> str:
-    """Read bytes/text/file-like into unicode text."""
+    """Прочитать bytes/str/file-like и вернуть unicode-строку."""
     if hasattr(source, "seek"):
         source.seek(0)
 
@@ -38,7 +38,7 @@ def _read_file_like(source: Any, encoding: str = "utf-8") -> str:
             return raw.decode(encoding)
         return str(raw)
 
-    raise TypeError("source must be bytes, str or file-like object")
+    raise TypeError("source должен быть bytes, str или file-like объектом")
 
 
 def read_csv(
@@ -46,40 +46,38 @@ def read_csv(
     delimiter: str | None = None,
     encoding: str = "utf-8",
 ) -> tuple[list[dict[str, str]], list[str], str]:
-    """
-    Read CSV from upload/file-like object.
+    """Прочитать CSV из upload/file-like объекта.
 
-    Returns:
-        (rows, header, used_delimiter)
+    Возвращает кортеж: (rows, header, used_delimiter).
     """
     text = _read_file_like(source, encoding=encoding)
     if not text or not text.strip():
-        raise CsvEmptyError("CSV is empty")
+        raise CsvEmptyError("CSV пустой")
 
     used_delimiter = delimiter or detect_delimiter(text)
     if used_delimiter not in SUPPORTED_DELIMITERS:
-        raise CsvMalformedError("Unsupported delimiter")
+        raise CsvMalformedError("Неподдерживаемый delimiter")
 
     reader = csv.reader(io.StringIO(text), delimiter=used_delimiter)
     try:
         parsed_rows = list(reader)
     except csv.Error as exc:
-        raise CsvMalformedError(f"Malformed CSV: {exc}") from exc
+        raise CsvMalformedError(f"Некорректный CSV: {exc}") from exc
 
     if not parsed_rows:
-        raise CsvEmptyError("CSV is empty")
+        raise CsvEmptyError("CSV пустой")
 
     header = [col.strip() for col in parsed_rows[0]]
     if not header or any(not col for col in header):
-        raise CsvInvalidHeaderError("CSV header contains empty column names")
+        raise CsvInvalidHeaderError("Заголовок CSV содержит пустые имена колонок")
     if len(set(header)) != len(header):
-        raise CsvInvalidHeaderError("CSV header contains duplicate columns")
+        raise CsvInvalidHeaderError("Заголовок CSV содержит дублирующиеся колонки")
 
     data_rows = parsed_rows[1:]
     result: list[dict[str, str]] = []
     for row in data_rows:
         if len(row) != len(header):
-            raise CsvMalformedError("CSV row length does not match header")
+            raise CsvMalformedError("Длина строки CSV не совпадает с заголовком")
         result.append({header[idx]: value for idx, value in enumerate(row)})
 
     return result, header, used_delimiter
