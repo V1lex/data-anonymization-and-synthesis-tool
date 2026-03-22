@@ -28,7 +28,7 @@ def _normalize_column_name(value: str) -> str:
 
 
 class UploadedCsvColumn(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     index: int = Field(..., ge=0, le=MAX_CSV_COLUMNS - 1)
     name: str = Field(..., min_length=1, max_length=128)
@@ -52,7 +52,7 @@ class UploadedCsvColumn(BaseModel):
 
 
 class AnonymizationRule(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     column_name: str = Field(..., min_length=1, max_length=128)
     method: AnonymizationMethod
@@ -65,7 +65,7 @@ class AnonymizationRule(BaseModel):
 
 
 class AnonymizeUploadResponse(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     upload_id: str = Field(..., min_length=1, max_length=64)
     file_name: str = Field(..., min_length=1, max_length=256)
@@ -80,7 +80,7 @@ class AnonymizeUploadResponse(BaseModel):
 
 
 class AnonymizeRunRequest(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     upload_id: str = Field(..., min_length=1, max_length=64)
     rules: list[AnonymizationRule] = Field(..., min_length=1, max_length=MAX_CSV_COLUMNS)
@@ -94,7 +94,7 @@ class AnonymizeRunRequest(BaseModel):
 
 
 class AnonymizeRunResponse(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     upload_id: str = Field(..., min_length=1, max_length=64)
     file_name: str = Field(..., min_length=1, max_length=128)

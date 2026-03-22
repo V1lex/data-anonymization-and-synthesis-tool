@@ -43,6 +43,11 @@ def test_read_csv_raises_on_invalid_header() -> None:
         read_csv(invalid)
 
 
+def test_read_csv_raises_on_header_only_csv() -> None:
+    with pytest.raises(CsvEmptyError):
+        read_csv(BytesIO(b"id,name\n"))
+
+
 def test_write_csv_returns_utf8_bytes() -> None:
     rows = [{"id": "1", "name": "Андрей"}]
     data = write_csv(rows, header=["id", "name"], delimiter=",")

@@ -30,6 +30,8 @@ class ResultFormat(str, Enum):
 
 
 class ErrorResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     error_code: str = Field(..., examples=["validation_error"])
     message: str = Field(..., min_length=1, examples=["row_count must be between 1 and 10000"])
     details: dict[str, Any] | None = Field(default=None)
@@ -37,6 +39,8 @@ class ErrorResponse(BaseModel):
 
 
 class GenerateTemplateColumn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(..., min_length=1, max_length=128)
     description: str = Field(..., min_length=1, max_length=256)
     example_value: str | None = Field(default=None, max_length=256)
@@ -54,7 +58,7 @@ class GenerateTemplateColumn(BaseModel):
 
 
 class GenerateTemplateSummary(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     template_id: GenerateTemplateId
     name: str = Field(..., min_length=1, max_length=128)
@@ -84,14 +88,14 @@ class GenerateTemplateDetail(GenerateTemplateSummary):
 
 
 class GenerateRunItem(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     template_id: GenerateTemplateId
     row_count: int = Field(..., ge=MIN_ROWS_PER_FILE, le=MAX_ROWS_PER_FILE)
 
 
 class GenerateRunRequest(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     items: list[GenerateRunItem] = Field(..., min_length=1, max_length=len(VALID_TEMPLATE_IDS))
 
@@ -104,7 +108,7 @@ class GenerateRunRequest(BaseModel):
 
 
 class GeneratedFile(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     template_id: GenerateTemplateId
     file_name: str = Field(..., min_length=1, max_length=128)
@@ -113,7 +117,7 @@ class GeneratedFile(BaseModel):
 
 
 class GenerateRunResponse(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     result_format: ResultFormat
     file_name: str = Field(..., min_length=1, max_length=128)
