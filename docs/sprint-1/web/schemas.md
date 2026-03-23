@@ -39,7 +39,7 @@
 
 Валидации:
 
-- если `preview_columns` передан, он содержит короткий список колонок для превью, а не полный список
+- если `preview_columns` передан, он содержит полный список колонок шаблона, который отображается на карточке Generate
 - если `preview_columns` передан, он не должен быть пустым и не должен содержать дубликатов
 - в именах колонок нет control characters
 
@@ -56,11 +56,13 @@
 ### `GenerateRunRequest`
 
 - `items: list[GenerateRunItem]`
+- `locale: FakerLocale = "ru_RU"`
 
 Валидации:
 
 - хотя бы один элемент в `items`
 - один и тот же `template_id` нельзя запрашивать дважды
+- `locale` должна быть одной из поддерживаемых: `ru_RU | en_US`
 
 ### `GenerateRunResponse`
 
@@ -92,13 +94,15 @@
 - `sample_values: list[str]`
 - `null_ratio: float`
 - `unique_ratio: float`
-- `suggested_method: AnonymizationMethod | None`
-- `suggestion_confidence: float | None`
-- `pii_hint: str | None`
+- `unsupported_methods: dict[str, str]`
 
 Использование:
 
 - описание одной колонки после `POST /anonymize/upload`
+
+Примечание:
+
+- `unsupported_methods` содержит только несовместимые методы и объяснение, почему их нельзя применять к этой колонке
 
 ### `AnonymizationRule`
 
@@ -125,7 +129,6 @@
 - `preview_rows: list[dict[str, str | None]]`
 - `delimiter: str`
 - `encoding: str`
-- `suggestions_included: bool`
 - `warnings: list[str]`
 
 Использование:

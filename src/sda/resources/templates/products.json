@@ -2,7 +2,7 @@
   "template_id": "products",
   "title": "Товары",
   "columns": [
-    {"name": "product_id", "provider": "uuid4"},
+    {"name": "product_id", "provider": "auto_increment"},
     {"name": "name", "provider": "word"},
     {"name": "price", "provider": "random_int", "min": 50, "max": 5000}
   ]

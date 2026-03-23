@@ -4,8 +4,16 @@ from collections.abc import Sequence
 from typing import Any
 
 from sda.core.domain.errors import GenerationError
-from sda.core.generation.generator import DataGenerator
+from sda.core.generation.generator import DEFAULT_FAKER_LOCALE, DataGenerator
 from sda.io.csv_write import write_csv_bytes
+
+TEMPLATE_DEPENDENCIES: dict[str, tuple[str, ...]] = {
+    "users": (),
+    "orders": ("users", "products"),
+    "payments": ("users", "orders"),
+    "products": (),
+    "support_tickets": ("users",),
+}
 
 
 def _zip_generated_files(files: Sequence[dict[str, Any]]) -> bytes:
@@ -16,10 +24,62 @@ def _zip_generated_files(files: Sequence[dict[str, Any]]) -> bytes:
     return buffer.getvalue()
 
 
+def _validate_dependencies(items: Sequence[dict[str, int]]) -> None:
+    requested_template_ids = {str(item.get("template_id")) for item in items}
+    for item in items:
+        template_id = str(item.get("template_id"))
+        missing_dependencies = [
+            dependency
+            for dependency in TEMPLATE_DEPENDENCIES.get(template_id, ())
+            if dependency not in requested_template_ids
+        ]
+        if missing_dependencies:
+            raise GenerationError(
+                f"Для генерации '{template_id}' нужно также выбрать: {', '.join(missing_dependencies)}.",
+                details={
+                    "template_id": template_id,
+                    "missing_dependencies": missing_dependencies,
+                },
+            )
+
+
+def _order_generation_items(items: list[dict[str, int]]) -> list[dict[str, int]]:
+    items_by_template_id = {
+        str(item["template_id"]): item
+        for item in items
+    }
+    ordered_items: list[dict[str, int]] = []
+    visited: set[str] = set()
+    visiting: set[str] = set()
+
+    def visit(template_id: str) -> None:
+        if template_id in visited:
+            return
+        if template_id in visiting:
+            raise GenerationError(
+                "Обнаружен цикл зависимостей между шаблонами генерации.",
+                details={"template_id": template_id},
+            )
+
+        visiting.add(template_id)
+        for dependency in TEMPLATE_DEPENDENCIES.get(template_id, ()):
+            if dependency in items_by_template_id:
+                visit(dependency)
+        visiting.remove(template_id)
+        visited.add(template_id)
+        ordered_items.append(items_by_template_id[template_id])
+
+    for item in items:
+        visit(str(item["template_id"]))
+
+    return ordered_items
+
+
 def generate_csv_use_case(
     items: list[dict[str, int]],
     *,
     delimiter: str = ",",
+    locale: str = DEFAULT_FAKER_LOCALE,
     generator: DataGenerator | None = None,
 ) -> dict[str, Any]:
     """Use case генерации CSV на уровне приложения.
@@ -42,12 +102,18 @@ def generate_csv_use_case(
             raise GenerationError(f"Повторяющийся template_id в запросе: '{template_id}'")
         seen.add(template_id)
 
-    data_generator = generator or DataGenerator()
-    tables = data_generator.generate_tables(items)
+    _validate_dependencies(items)
+    ordered_items = _order_generation_items(items)
+
+    data_generator = generator or DataGenerator(locale=locale)
+    set_locale = getattr(data_generator, "set_locale", None)
+    if callable(set_locale):
+        set_locale(locale)
+    tables = data_generator.generate_tables(ordered_items)
 
     generated_files: list[dict[str, Any]] = []
     total_rows = 0
-    for item in items:
+    for item in ordered_items:
         template_id = item["template_id"]
         rows = tables[template_id]
         csv_content = write_csv_bytes(rows, delimiter=delimiter)

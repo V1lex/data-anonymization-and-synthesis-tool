@@ -3,10 +3,12 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from sda.core.generation.generator import DEFAULT_FAKER_LOCALE
+
 MAX_ROWS_PER_FILE = 10_000
 MIN_ROWS_PER_FILE = 1
 MAX_TEMPLATE_COLUMNS = 64
-MAX_PREVIEW_COLUMNS = 5
+MAX_PREVIEW_COLUMNS = MAX_TEMPLATE_COLUMNS
 VALID_TEMPLATE_IDS = {
     "users",
     "orders",
@@ -29,7 +31,14 @@ class ResultFormat(str, Enum):
     ZIP_BASE64 = "zip_base64"
 
 
+class FakerLocale(str, Enum):
+    RU_RU = "ru_RU"
+    EN_US = "en_US"
+
+
 class ErrorResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     error_code: str = Field(..., examples=["validation_error"])
     message: str = Field(..., min_length=1, examples=["row_count must be between 1 and 10000"])
     details: dict[str, Any] | None = Field(default=None)
@@ -37,6 +46,8 @@ class ErrorResponse(BaseModel):
 
 
 class GenerateTemplateColumn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str = Field(..., min_length=1, max_length=128)
     description: str = Field(..., min_length=1, max_length=256)
     example_value: str | None = Field(default=None, max_length=256)
@@ -54,7 +65,7 @@ class GenerateTemplateColumn(BaseModel):
 
 
 class GenerateTemplateSummary(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     template_id: GenerateTemplateId
     name: str = Field(..., min_length=1, max_length=128)
@@ -84,16 +95,17 @@ class GenerateTemplateDetail(GenerateTemplateSummary):
 
 
 class GenerateRunItem(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     template_id: GenerateTemplateId
     row_count: int = Field(..., ge=MIN_ROWS_PER_FILE, le=MAX_ROWS_PER_FILE)
 
 
 class GenerateRunRequest(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     items: list[GenerateRunItem] = Field(..., min_length=1, max_length=len(VALID_TEMPLATE_IDS))
+    locale: FakerLocale = Field(default=DEFAULT_FAKER_LOCALE)
 
     @model_validator(mode="after")
     def validate_items(self) -> "GenerateRunRequest":
@@ -104,7 +116,7 @@ class GenerateRunRequest(BaseModel):
 
 
 class GeneratedFile(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     template_id: GenerateTemplateId
     file_name: str = Field(..., min_length=1, max_length=128)
@@ -113,7 +125,7 @@ class GeneratedFile(BaseModel):
 
 
 class GenerateRunResponse(BaseModel):
-    model_config = ConfigDict(use_enum_values=True)
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     result_format: ResultFormat
     file_name: str = Field(..., min_length=1, max_length=128)
@@ -144,6 +156,7 @@ class GenerateRunResponse(BaseModel):
 
 __all__ = [
     "ErrorResponse",
+    "FakerLocale",
     "GeneratedFile",
     "GenerateRunItem",
     "GenerateRunRequest",

@@ -45,6 +45,7 @@ def read_csv(
     source: bytes | str | BinaryIO | TextIO,
     delimiter: str | None = None,
     encoding: str = "utf-8",
+    has_header: bool = True,
 ) -> tuple[list[dict[str, str]], list[str], str]:
     """Прочитать CSV из upload/file-like объекта.
 
@@ -67,13 +68,23 @@ def read_csv(
     if not parsed_rows:
         raise CsvEmptyError("CSV пустой")
 
-    header = [col.strip() for col in parsed_rows[0]]
-    if not header or any(not col for col in header):
-        raise CsvInvalidHeaderError("Заголовок CSV содержит пустые имена колонок")
-    if len(set(header)) != len(header):
-        raise CsvInvalidHeaderError("Заголовок CSV содержит дублирующиеся колонки")
+    if has_header:
+        header = [col.strip() for col in parsed_rows[0]]
+        if not header or any(not col for col in header):
+            raise CsvInvalidHeaderError("Заголовок CSV содержит пустые имена колонок")
+        if len(set(header)) != len(header):
+            raise CsvInvalidHeaderError("Заголовок CSV содержит дублирующиеся колонки")
+        data_rows = parsed_rows[1:]
+    else:
+        width = len(parsed_rows[0])
+        if width == 0:
+            raise CsvMalformedError("CSV не содержит колонок")
+        header = [f"column_{index + 1}" for index in range(width)]
+        data_rows = parsed_rows
 
-    data_rows = parsed_rows[1:]
+    if not data_rows:
+        raise CsvEmptyError("CSV не содержит строк данных")
+
     result: list[dict[str, str]] = []
     for row in data_rows:
         if len(row) != len(header):

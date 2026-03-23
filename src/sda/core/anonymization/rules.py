@@ -1,6 +1,8 @@
 from enum import Enum
 from dataclasses import dataclass
 
+from sda.core.domain.errors import InvalidRuleError
+
 
 class AnonymizationMethod(str, Enum):
     """Поддерживаемые методы анонимизации в MVP."""
@@ -85,6 +87,37 @@ def get_supported_methods() -> list[str]:
     return [method.value for method in AnonymizationMethod]
 
 
+def get_method_title(method: str | AnonymizationMethod) -> str:
+    """Возвращает пользовательский заголовок метода по его коду."""
+    if isinstance(method, AnonymizationMethod):
+        return METHOD_SPECS[method].title
+    normalized = ensure_supported_method(method)
+    return METHOD_SPECS[AnonymizationMethod(normalized)].title
+
+
 def get_method_spec(method: AnonymizationMethod) -> MethodSpec:
     """Возвращает описание метода анонимизации."""
     return METHOD_SPECS[method]
+
+
+SUPPORTED_ANONYMIZATION_METHODS = {
+    "keep",
+    "mask",
+    "redact",
+    "pseudonymize",
+    "generalize_year",
+}
+
+
+def ensure_supported_method(method: str) -> str:
+    normalized = method.strip()
+    if normalized not in SUPPORTED_ANONYMIZATION_METHODS:
+        supported = ", ".join(sorted(SUPPORTED_ANONYMIZATION_METHODS))
+        raise InvalidRuleError(
+            f"Неподдерживаемый метод анонимизации '{method}'. Ожидались: {supported}.",
+            details={
+                "method": method,
+                "supported_methods": sorted(SUPPORTED_ANONYMIZATION_METHODS),
+            },
+        )
+    return normalized
