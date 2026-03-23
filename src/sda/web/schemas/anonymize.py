@@ -1,21 +1,12 @@
-from enum import Enum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from sda.core.anonymization.rules import AnonymizationMethod
+from sda.core.domain.limits import MAX_CSV_COLUMNS, MAX_CSV_ROWS
 from sda.web.schemas.generate import ErrorResponse, ResultFormat
 
-MAX_CSV_ROWS = 10_000
-MAX_CSV_COLUMNS = 128
 MAX_SAMPLE_VALUES = 5
-
-
-class AnonymizationMethod(str, Enum):
-    KEEP = "keep"
-    MASK = "mask"
-    REDACT = "redact"
-    PSEUDONYMIZE = "pseudonymize"
-    GENERALIZE_YEAR = "generalize_year"
 
 
 def _normalize_column_name(value: str) -> str:
@@ -36,9 +27,7 @@ class UploadedCsvColumn(BaseModel):
     sample_values: list[str] = Field(default_factory=list, max_length=MAX_SAMPLE_VALUES)
     null_ratio: float = Field(..., ge=0.0, le=1.0)
     unique_ratio: float = Field(..., ge=0.0, le=1.0)
-    suggested_method: AnonymizationMethod | None = Field(default=None)
-    suggestion_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
-    pii_hint: str | None = Field(default=None, max_length=256)
+    unsupported_methods: dict[str, str] = Field(default_factory=dict, max_length=5)
 
     @field_validator("name")
     @classmethod
@@ -49,6 +38,15 @@ class UploadedCsvColumn(BaseModel):
     @classmethod
     def validate_sample_values(cls, value: list[str]) -> list[str]:
         return [sample.strip() for sample in value]
+
+    @field_validator("unsupported_methods")
+    @classmethod
+    def validate_unsupported_methods(cls, value: dict[str, str]) -> dict[str, str]:
+        return {
+            str(method).strip(): str(message).strip()
+            for method, message in value.items()
+            if str(method).strip() and str(message).strip()
+        }
 
 
 class AnonymizationRule(BaseModel):
@@ -75,7 +73,6 @@ class AnonymizeUploadResponse(BaseModel):
     preview_rows: list[dict[str, str | None]] = Field(default_factory=list, max_length=5)
     delimiter: str = Field(default=",", min_length=1, max_length=1)
     encoding: str = Field(default="utf-8", min_length=3, max_length=32)
-    suggestions_included: bool = Field(default=True)
     warnings: list[str] = Field(default_factory=list, max_length=10)
 
 

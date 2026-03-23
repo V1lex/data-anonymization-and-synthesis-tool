@@ -2,9 +2,9 @@
   "template_id": "support_tickets",
   "title": "Тикеты поддержки",
   "columns": [
-    {"name": "ticket_id", "provider": "uuid4"},
+    {"name": "ticket_id", "provider": "auto_increment"},
     {"name": "user_id", "provider": "context_ref", "ref": "user_id"},
-    {"name": "issue", "provider": "sentence"},
+    {"name": "message", "provider": "sentence"},
     {"name": "created_at", "provider": "date_time_between"},
     {
       "name": "status", 

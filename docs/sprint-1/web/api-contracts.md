@@ -62,40 +62,78 @@
 
 ```json
 {
+  "locale": "ru_RU",
   "items": [
     {
       "template_id": "users",
-      "name": "Users",
-      "description": "Synthetic user profiles for demo datasets.",
-      "preview_columns": ["user_id", "first_name", "last_name", "email"]
+      "name": "Пользователи",
+      "description": "Синтетические профили пользователей для демонстрационных наборов данных.",
+      "preview_columns": [
+        "user_id",
+        "full_name",
+        "email",
+        "phone",
+        "city",
+        "address",
+        "birth_date",
+        "registration_date"
+      ]
     },
     {
       "template_id": "orders",
-      "name": "Orders",
-      "description": "Synthetic order history linked to users.",
-      "preview_columns": ["order_id", "user_id", "order_date", "status"]
+      "name": "Заказы",
+      "description": "Синтетическая история заказов, связанная с пользователями и товарами.",
+      "preview_columns": [
+        "order_id",
+        "user_id",
+        "product_id",
+        "amount",
+        "order_date",
+        "currency"
+      ]
     },
     {
       "template_id": "payments",
-      "name": "Payments",
-      "description": "Synthetic payment transactions linked to orders.",
-      "preview_columns": ["payment_id", "order_id", "amount", "payment_status"]
+      "name": "Платежи",
+      "description": "Синтетические платежные операции, связанные с заказами.",
+      "preview_columns": [
+        "payment_id",
+        "order_id",
+        "user_id",
+        "status"
+      ]
     },
     {
       "template_id": "products",
-      "name": "Products",
-      "description": "Synthetic product catalog.",
-      "preview_columns": ["product_id", "product_name", "category", "price"]
+      "name": "Товары",
+      "description": "Синтетический каталог товаров.",
+      "preview_columns": [
+        "product_id",
+        "name",
+        "price"
+      ]
     },
     {
       "template_id": "support_tickets",
-      "name": "Support tickets",
-      "description": "Synthetic support communication records.",
-      "preview_columns": ["ticket_id", "user_id", "topic", "status"]
+      "name": "Тикеты поддержки",
+      "description": "Синтетические обращения в поддержку.",
+      "preview_columns": [
+        "ticket_id",
+        "user_id",
+        "created_at",
+        "message",
+        "status",
+        "priority",
+        "operator_name"
+      ]
     }
   ]
 }
 ```
+
+Примечание:
+
+- `preview_columns` в planned-контракте содержит полный список колонок шаблона, который показывается на карточке Generate
 
 Ошибки:
 
@@ -113,14 +151,29 @@
 ```json
 {
   "template_id": "users",
-  "name": "Users",
-  "description": "Synthetic user profiles for demo datasets.",
-  "preview_columns": ["user_id", "first_name", "last_name", "email"],
+  "name": "Пользователи",
+  "description": "Синтетические профили пользователей для демонстрационных наборов данных.",
+  "preview_columns": [
+    "user_id",
+    "full_name",
+    "email",
+    "phone",
+    "city",
+    "address",
+    "birth_date",
+    "registration_date"
+  ],
   "columns": [
     {
-      "name": "email",
-      "description": "User email address",
-      "example_value": "alex@example.com",
+      "name": "user_id",
+      "description": "User id",
+      "example_value": null,
+      "pii_expected": false
+    },
+    {
+      "name": "full_name",
+      "description": "Full name",
+      "example_value": null,
       "pii_expected": true
     }
   ]
@@ -157,9 +210,11 @@
 
 Правила:
 
+- `locale` - optional, поддерживаемые значения: `ru_RU | en_US`, по умолчанию `ru_RU`.
 - `items` - минимум 1 и максимум 5 шаблонов.
 - Один `template_id` нельзя передавать дважды.
 - `row_count` на каждый файл должен быть в диапазоне `1..10000`.
+- `locale` влияет на Faker-поля вроде `name`, `city`, `address`, `phone_number`.
 - Если в `items` один шаблон, backend возвращает один CSV.
 - Если в `items` больше одного шаблона, backend возвращает ZIP-архив.
 
@@ -216,7 +271,7 @@
 Ошибки:
 
 - `400 invalid_template_id` - передан неизвестный template_id.
-- `422 validation_error` - нарушены лимиты `row_count` или структура body.
+- `422 validation_error` - нарушены лимиты `row_count`, передана неподдерживаемая `locale` или нарушена структура body.
 - `500 generation_failed` - генератор не смог построить CSV.
 
 ## POST /anonymize/upload
@@ -230,15 +285,12 @@
 - `file`: CSV-файл, обязательный.
 - `delimiter`: необязательное поле, 1 символ, по умолчанию `,`.
 - `has_header`: необязательный boolean, по умолчанию `true`.
-- `suggest`: необязательный boolean, по умолчанию `true`.
-
-Решение по `suggest`: отдельный endpoint не нужен для Sprint 1. Подсказки PII интегрируются в `/anonymize/upload`, чтобы после загрузки клиент сразу получил колонки и предложенные методы. При этом в документе фиксируем, что позже можно добавить отдельный `POST /suggest/rules`, если подсказки потребуется вызывать повторно без повторной загрузки файла.
 
 Ответ `200 OK`:
 
 ```json
 {
-  "upload_id": "upl_123",
+  "upload_id": "upload_1",
   "file_name": "customers.csv",
   "row_count": 850,
   "column_count": 6,
@@ -250,9 +302,9 @@
       "sample_values": ["a@example.com", "b@example.com"],
       "null_ratio": 0.0,
       "unique_ratio": 0.99,
-      "suggested_method": "mask",
-      "suggestion_confidence": 0.95,
-      "pii_hint": "column name and sample values look like email"
+      "unsupported_methods": {
+        "generalize_year": "Метод 'Обобщение до года' нельзя применить к колонке 'email': значения не похожи на даты."
+      }
     }
   ],
   "preview_rows": [
@@ -263,10 +315,14 @@
   ],
   "delimiter": ",",
   "encoding": "utf-8",
-  "suggestions_included": true,
   "warnings": []
 }
 ```
+
+Примечания:
+
+- `unsupported_methods` содержит только те методы, которые backend считает неприменимыми к конкретной колонке.
+- frontend может использовать `unsupported_methods` для подсветки или блокировки неподходящих действий до отправки `POST /anonymize/run`.
 
 Ошибки:
 
@@ -287,7 +343,7 @@
 
 ```json
 {
-  "upload_id": "upl_123",
+  "upload_id": "upload_1",
   "rules": [
     {
       "column_name": "email",
@@ -310,13 +366,14 @@
 - `upload_id` должен ссылаться на ранее загруженный файл.
 - `rules` содержит уникальные `column_name`.
 - Поддерживаемые методы: `keep`, `mask`, `redact`, `pseudonymize`, `generalize_year`.
+- Если метод помечен в `unsupported_methods` для колонки, backend всё равно повторно валидирует его на `POST /anonymize/run` и вернёт `invalid_rule`.
 - Если колонка не передана в `rules`, backend трактует ее как `keep` только если это явно согласовано в реализации. Для Sprint 1 рекомендуется, чтобы frontend отправлял правила для всех колонок.
 
 Ответ `200 OK`:
 
 ```json
 {
-  "upload_id": "upl_123",
+  "upload_id": "upload_1",
   "file_name": "customers_anonymized.csv",
   "row_count": 850,
   "column_count": 6,
@@ -376,7 +433,7 @@
   "preview_rows": [
     {
       "status": "paid",
-      "total_amount": "120.00"
+      "amount": "3"
     }
   ],
   "summary": [

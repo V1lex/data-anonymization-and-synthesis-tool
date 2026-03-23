@@ -3,10 +3,12 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from sda.core.generation.generator import DEFAULT_FAKER_LOCALE
+
 MAX_ROWS_PER_FILE = 10_000
 MIN_ROWS_PER_FILE = 1
 MAX_TEMPLATE_COLUMNS = 64
-MAX_PREVIEW_COLUMNS = 5
+MAX_PREVIEW_COLUMNS = MAX_TEMPLATE_COLUMNS
 VALID_TEMPLATE_IDS = {
     "users",
     "orders",
@@ -27,6 +29,11 @@ class GenerateTemplateId(str, Enum):
 class ResultFormat(str, Enum):
     CSV_BASE64 = "csv_base64"
     ZIP_BASE64 = "zip_base64"
+
+
+class FakerLocale(str, Enum):
+    RU_RU = "ru_RU"
+    EN_US = "en_US"
 
 
 class ErrorResponse(BaseModel):
@@ -98,6 +105,7 @@ class GenerateRunRequest(BaseModel):
     model_config = ConfigDict(use_enum_values=True, extra="forbid")
 
     items: list[GenerateRunItem] = Field(..., min_length=1, max_length=len(VALID_TEMPLATE_IDS))
+    locale: FakerLocale = Field(default=DEFAULT_FAKER_LOCALE)
 
     @model_validator(mode="after")
     def validate_items(self) -> "GenerateRunRequest":
@@ -148,6 +156,7 @@ class GenerateRunResponse(BaseModel):
 
 __all__ = [
     "ErrorResponse",
+    "FakerLocale",
     "GeneratedFile",
     "GenerateRunItem",
     "GenerateRunRequest",

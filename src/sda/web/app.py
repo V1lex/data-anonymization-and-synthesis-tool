@@ -16,21 +16,62 @@ API_PREFIX = "/api/v1"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 
+def _static_asset_url(file_name: str) -> str:
+    asset_path = STATIC_DIR / file_name
+    version = asset_path.stat().st_mtime_ns
+    return f"/static/{file_name}?v={version}"
+
+
 def _render_shell(page: str, title: str) -> HTMLResponse:
+    css_url = _static_asset_url("app.css")
+    js_url = _static_asset_url("app.js")
     html = f"""<!doctype html>
 <html lang="ru">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
-    <link rel="stylesheet" href="/static/app.css" />
+    <script>
+      (() => {{
+        const page = "{page}";
+        const defaultTitle = "{title}";
+        const titles = {{
+          ru: {{
+            home: "SDA",
+            generate: "SDA - Генерация",
+            anonymize: "SDA - Анонимизация",
+            similar: "SDA - Похожие данные",
+          }},
+          en: {{
+            home: "SDA",
+            generate: "SDA - Generate",
+            anonymize: "SDA - Anonymize",
+            similar: "SDA - Similar Data",
+          }},
+        }};
+
+        let language = "ru";
+        try {{
+          const stored = window.localStorage.getItem("sda_ui_language");
+          if (stored && Object.prototype.hasOwnProperty.call(titles, stored)) {{
+            language = stored;
+          }}
+        }} catch (error) {{
+          language = "ru";
+        }}
+
+        document.documentElement.lang = language;
+        document.title = titles[language]?.[page] || defaultTitle;
+      }})();
+    </script>
+    <link rel="stylesheet" href="{css_url}" />
   </head>
   <body data-page="{page}">
     <main id="app"></main>
     <script>
       window.SDA_API_BASE = "{API_PREFIX}";
     </script>
-    <script src="/static/app.js" defer></script>
+    <script src="{js_url}" defer></script>
   </body>
 </html>"""
     return HTMLResponse(html)

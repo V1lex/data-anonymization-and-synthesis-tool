@@ -87,6 +87,14 @@ def get_supported_methods() -> list[str]:
     return [method.value for method in AnonymizationMethod]
 
 
+def get_method_title(method: str | AnonymizationMethod) -> str:
+    """Возвращает пользовательский заголовок метода по его коду."""
+    if isinstance(method, AnonymizationMethod):
+        return METHOD_SPECS[method].title
+    normalized = ensure_supported_method(method)
+    return METHOD_SPECS[AnonymizationMethod(normalized)].title
+
+
 def get_method_spec(method: AnonymizationMethod) -> MethodSpec:
     """Возвращает описание метода анонимизации."""
     return METHOD_SPECS[method]

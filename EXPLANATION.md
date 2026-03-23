@@ -99,7 +99,7 @@
 - Что добавить дальше:
   - генерацию через `Faker`,
   - шаблоны минимум для 2 таблиц,
-  - связь `orders.user_id -> users.id`.
+  - связи `orders.user_id -> users.user_id` и `orders.product_id -> products.product_id`.
 
 #### `src/sda/core/anonymization/`
 
@@ -112,10 +112,10 @@
 
 ##### `src/sda/core/anonymization/rules.py`
 - Что это: правила анонимизации (какой метод к какой колонке).
-- Для чего нужен: централизованная конфигурация поведения.
+- Для чего нужен: централизованное описание поддерживаемых методов и их названий.
 - Что добавить дальше:
-  - enum/константы методов (`mask`, `redact`, `pseudo`),
-  - парсинг правил из JSON-запросов API.
+  - если появятся новые методы, добавлять их в единый каталог отсюда,
+  - при необходимости вынести общие ограничения методов в отдельный слой.
 
 ##### `src/sda/core/anonymization/anonymizer.py`
 - Что это: движок анонимизации значений.
@@ -188,15 +188,14 @@
 
 ##### `src/sda/use_cases/anonymize_csv.py`
 - Что это: use-case анонимизации CSV.
-- Для чего нужен: единый сценарий для preview и полного экспорта.
+- Для чего нужен: единый сценарий для preview, валидации правил и итогового экспорта.
 - Что добавить дальше:
-  - чтение CSV из bytes,
-  - применение правил через `core/anonymization`,
-  - возврат preview и итогового CSV.
+  - если появятся suggestions, подключить их как отдельный post-MVP поток,
+  - при росте сложности вынести правила совместимости методов в отдельный модуль.
 
 ##### `src/sda/use_cases/suggest_pii.py`
-- Что это: use-case подсказки PII-полей.
-- Для чего нужен: общая логика рекомендации правил для интерфейсов.
+- Что это: заготовка под post-MVP use-case подсказки PII-полей.
+- Для чего нужен: общая логика рекомендации правил для интерфейсов в Sprint 3+.
 - Что добавить дальше:
   - анализ заголовков и примеров значений,
   - формирование JSON-правил по эвристикам.
@@ -452,42 +451,66 @@
 `docs` = проектная документация по спринтам (планирование, контракты, чек-листы).
 
 #### `docs/sprint-1/`
-- Что это: документы первого спринта (рамки MVP и дизайн решений).
-- Для чего нужен: синхронизация команды до реализации.
+- Что это: документы первого спринта, сгруппированные по назначению.
+- Для чего нужен: отдельно хранить web-контракты, системные решения и QA-рамки.
 
-##### `docs/sprint-1/scope.md`
-- Что это: границы и цели спринта.
-- Для чего нужен: зафиксировать, что входит/не входит в MVP.
+##### `docs/sprint-1/web/`
+- Что это: web-документы Sprint 1.
+- Для чего нужен: собрать API/UI спецификацию в одном месте.
 
-##### `docs/sprint-1/architecture.md`
-- Что это: описание архитектурных решений.
-- Для чего нужен: единое понимание слоёв, зависимостей и ответственности модулей.
-
-##### `docs/sprint-1/api-contracts.md`
+###### `docs/sprint-1/web/api-contracts.md`
 - Что это: API-контракты (эндпоинты, поля, статусы).
 - Для чего нужен: согласовать backend/frontend и тест-кейсы.
 
-##### `docs/sprint-1/schemas.md`
+###### `docs/sprint-1/web/schemas.md`
 - Что это: структуры данных и схемы моделей.
 - Для чего нужен: единый источник форматов запросов/ответов.
 
-##### `docs/sprint-1/ui-flow.md`
+###### `docs/sprint-1/web/ui-flow.md`
 - Что это: пользовательские потоки интерфейса.
 - Для чего нужен: выстроить сценарии работы с генерацией, анонимизацией и синтезом.
 
-##### `docs/sprint-1/test-plan.md`
-- Что это: план тестирования.
+##### `docs/sprint-1/system/`
+- Что это: системные и доменные документы Sprint 1.
+- Для чего нужен: отделить архитектуру и модель данных от web-спецификаций.
+
+###### `docs/sprint-1/system/architecture.md`
+- Что это: описание архитектурных решений.
+- Для чего нужен: единое понимание слоёв, зависимостей и ответственности модулей.
+
+###### `docs/sprint-1/system/data-model.md`
+- Что это: модель данных и связи между шаблонами.
+- Для чего нужен: фиксировать зависимости между встроенными таблицами.
+
+###### `docs/sprint-1/system/anonymization-methods.md`
+- Что это: описание методов анонимизации.
+- Для чего нужен: фиксировать допустимые способы обработки колонок.
+
+##### `docs/sprint-1/qa/`
+- Что это: QA-рамки Sprint 1.
+- Для чего нужен: определить объём проверок и критерии приемки.
+
+###### `docs/sprint-1/qa/scope.md`
+- Что это: QA scope и acceptance boundaries спринта.
 - Для чего нужен: определить объём и порядок проверок.
 
-#### `docs/sprint-2/demo-mvp.md`
+#### `docs/sprint-2/product/`
+- Что это: продуктовые документы Sprint 2.
+- Для чего нужен: описывать границы MVP-демо и сценарии показа.
+
+##### `docs/sprint-2/product/scope.md`
+- Что это: продуктовый scope ко 2-му спринту.
+- Для чего нужен: зафиксировать, что входит/не входит в MVP demo.
+
+##### `docs/sprint-2/product/demo-mvp.md`
 - Что это: сценарий/чек-лист демо MVP.
 - Для чего нужен: быстро проверить готовность продукта к показу.
 
-#### `docs/sprint-3/post-mvp.md`
+#### `docs/sprint-3/product/post-mvp.md`
 - Что это: план развития после MVP.
 - Для чего нужен: фиксировать следующий этап и техдолг.
 
-#### `docs/sprint-4/final-checklist.md`
+#### `docs/sprint-4/release/final-checklist.md`
 - Что это: финальный чек-лист перед сдачей/релизом.
 - Для чего нужен: контроль полноты документации, тестов и ключевого функционала.
 
@@ -495,19 +518,20 @@
 
 ## Короткий Scope-резюме (Sprint 1 -> Sprint 2 demo)
 
-Подробный документ: `docs/sprint-1/scope.md`.
+Подробный документ: `docs/sprint-2/product/scope.md`.
 
 ### В MVP ко 2 спринту входит
 1. `Generate`: выбор одной/нескольких таблиц, выбор количества строк, скачивание CSV.
 Таблицы и колонки:
-- `users.csv`: `user_id`, `first_name`, `last_name`, `full_name`, `email`, `phone`, `city`, `address`, `birth_date`, `registration_date`, `is_active`.
-- `orders.csv`: `order_id`, `user_id`, `order_date`, `status`, `total_amount`, `currency`, `delivery_city`, `delivery_address`, `comment`.
-- `payments.csv`: `payment_id`, `order_id`, `user_id`, `payment_date`, `amount`, `payment_method`, `payment_status`, `transaction_reference`, `payer_email`.
-- `products.csv`: `product_id`, `product_name`, `category`, `price`, `brand`, `supplier_name`, `created_at`, `is_available`.
-- `support_tickets.csv`: `ticket_id`, `user_id`, `created_at`, `topic`, `message_text`, `channel`, `status`, `priority`, `operator_name`, `contact_email`.
-2. `Anonymize`: загрузка любого CSV, анализ колонок, ручной выбор обработки по колонкам, скачивание результата. По умолчанию для колонок `keep`, а `suggest_pii` дает подсказки.
+- `users.csv`: `user_id`, `full_name`, `email`, `phone`, `city`, `address`, `birth_date`, `registration_date`.
+- `orders.csv`: `order_id`, `user_id`, `product_id`, `amount`, `order_date`, `currency`.
+- `payments.csv`: `payment_id`, `order_id`, `user_id`, `status`.
+- `products.csv`: `product_id`, `name`, `price`.
+- `support_tickets.csv`: `ticket_id`, `user_id`, `created_at`, `message`, `status`, `priority`, `operator_name`.
+2. `Anonymize`: загрузка любого CSV, анализ колонок, ручной выбор обработки по колонкам, скачивание результата. По умолчанию для колонок `keep`, а несовместимые методы помечаются сразу после анализа файла.
 
 ### В post-MVP (спринты 3-4)
+- `Suggest rules`: рекомендации по методам анонимизации с `suggested_method`, `suggestion_confidence` и `pii_hint`.
 - `Similar`: загрузка CSV, анализ структуры и статистик, генерация похожего synthetic CSV и скачивание.
 - Повышение качества синтеза и сохранения зависимостей.
 - Расширение автоматизации анализа и UX.

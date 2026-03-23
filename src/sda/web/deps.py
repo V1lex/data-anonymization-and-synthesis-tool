@@ -1,18 +1,30 @@
 import json
-from dataclasses import dataclass
+import time
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from tempfile import gettempdir
 from threading import Lock
-from uuid import uuid4
+from typing import Any
 
+from sda.core.domain.limits import UPLOAD_TTL_SECONDS
 from sda.core.domain.errors import TemplateNotFoundError, UploadNotFoundError
 
 TEMPLATE_DESCRIPTIONS = {
     "users": "Синтетические профили пользователей для демонстрационных наборов данных.",
-    "orders": "Синтетическая история заказов, связанная с пользователями.",
+    "orders": "Синтетическая история заказов, связанная с пользователями и товарами.",
     "payments": "Синтетические платежные операции, связанные с заказами.",
     "products": "Синтетический каталог товаров.",
     "support_tickets": "Синтетические обращения в поддержку.",
 }
+TEMPLATE_DISPLAY_ORDER = (
+    "users",
+    "orders",
+    "payments",
+    "products",
+    "support_tickets",
+)
+UPLOAD_STORE_DIR = Path(gettempdir()) / "sda_upload_store"
+UPLOAD_ID_PREFIX = "upload_"
 
 
 def _templates_dir() -> Path:
@@ -29,7 +41,7 @@ def load_template_payload(template_id: str) -> dict:
 
 def load_template_catalog() -> list[dict]:
     items: list[dict] = []
-    for path in sorted(_templates_dir().glob("*.json")):
+    for path in _templates_dir().glob("*.json"):
         payload = load_template_payload(path.stem)
         columns = payload.get("columns", [])
         items.append(
@@ -37,10 +49,12 @@ def load_template_catalog() -> list[dict]:
                 "template_id": payload["template_id"],
                 "name": payload.get("title", payload["template_id"].replace("_", " ").title()),
                 "description": TEMPLATE_DESCRIPTIONS.get(payload["template_id"]),
-                "preview_columns": [column["name"] for column in columns[:4]],
+                "preview_columns": [column["name"] for column in columns],
                 "columns": columns,
             }
         )
+    order_index = {template_id: index for index, template_id in enumerate(TEMPLATE_DISPLAY_ORDER)}
+    items.sort(key=lambda item: order_index.get(item["template_id"], len(order_index)))
     return items
 
 
@@ -56,12 +70,59 @@ class UploadedCsvSession:
     header: list[str]
     delimiter: str
     encoding: str = "utf-8"
+    created_at: float = field(default_factory=time.time)
 
 
 class UploadStore:
-    def __init__(self) -> None:
-        self._items: dict[str, UploadedCsvSession] = {}
+    def __init__(self, *, storage_dir: Path | None = None, ttl_seconds: int = UPLOAD_TTL_SECONDS) -> None:
+        self._storage_dir = Path(storage_dir or UPLOAD_STORE_DIR)
+        self._ttl_seconds = ttl_seconds
         self._lock = Lock()
+        self._storage_dir.mkdir(parents=True, exist_ok=True)
+
+    def _session_path(self, upload_id: str) -> Path:
+        return self._storage_dir / f"{upload_id}.json"
+
+    def _write_session(self, session: UploadedCsvSession) -> None:
+        path = self._session_path(session.upload_id)
+        tmp_path = path.with_suffix(".json.tmp")
+        tmp_path.write_text(json.dumps(asdict(session), ensure_ascii=False), encoding="utf-8")
+        tmp_path.replace(path)
+
+    def _read_session(self, upload_id: str) -> UploadedCsvSession:
+        path = self._session_path(upload_id)
+        payload: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+        return UploadedCsvSession(
+            upload_id=str(payload["upload_id"]),
+            file_name=str(payload["file_name"]),
+            rows=list(payload["rows"]),
+            header=list(payload["header"]),
+            delimiter=str(payload["delimiter"]),
+            encoding=str(payload.get("encoding", "utf-8")),
+            created_at=float(payload.get("created_at", 0.0)),
+        )
+
+    def _is_expired(self, session: UploadedCsvSession) -> bool:
+        return self._ttl_seconds > 0 and (time.time() - session.created_at) > self._ttl_seconds
+
+    def _cleanup_expired_locked(self) -> None:
+        for path in self._storage_dir.glob("*.json"):
+            try:
+                session = self._read_session(path.stem)
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+                path.unlink(missing_ok=True)
+                continue
+
+            if self._is_expired(session):
+                path.unlink(missing_ok=True)
+
+    def _next_upload_id_locked(self) -> str:
+        next_value = 1
+        for path in self._storage_dir.glob(f"{UPLOAD_ID_PREFIX}*.json"):
+            suffix = path.stem.removeprefix(UPLOAD_ID_PREFIX)
+            if suffix.isdigit():
+                next_value = max(next_value, int(suffix) + 1)
+        return f"{UPLOAD_ID_PREFIX}{next_value}"
 
     def create(
         self,
@@ -72,23 +133,34 @@ class UploadStore:
         delimiter: str,
         encoding: str = "utf-8",
     ) -> UploadedCsvSession:
-        session = UploadedCsvSession(
-            upload_id=f"upl_{uuid4().hex[:12]}",
-            file_name=file_name,
-            rows=rows,
-            header=header,
-            delimiter=delimiter,
-            encoding=encoding,
-        )
         with self._lock:
-            self._items[session.upload_id] = session
+            self._cleanup_expired_locked()
+            session = UploadedCsvSession(
+                upload_id=self._next_upload_id_locked(),
+                file_name=file_name,
+                rows=rows,
+                header=header,
+                delimiter=delimiter,
+                encoding=encoding,
+            )
+            self._write_session(session)
         return session
 
     def get(self, upload_id: str) -> UploadedCsvSession:
         with self._lock:
-            session = self._items.get(upload_id)
-        if session is None:
-            raise UploadNotFoundError(f"upload_id '{upload_id}' не найден.")
+            path = self._session_path(upload_id)
+            if not path.exists():
+                raise UploadNotFoundError(
+                    f"upload_id '{upload_id}' не найден.",
+                    details={"upload_id": upload_id},
+                )
+            session = self._read_session(upload_id)
+            if self._is_expired(session):
+                path.unlink(missing_ok=True)
+                raise UploadNotFoundError(
+                    f"upload_id '{upload_id}' истек.",
+                    details={"upload_id": upload_id},
+                )
         return session
 
 

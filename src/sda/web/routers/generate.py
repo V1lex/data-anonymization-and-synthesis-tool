@@ -48,7 +48,7 @@ def get_template_detail(template_id: str) -> dict:
         template_id=payload["template_id"],
         name=payload.get("title", payload["template_id"].replace("_", " ").title()),
         description=TEMPLATE_DESCRIPTIONS.get(payload["template_id"]),
-        preview_columns=[column["name"] for column in columns[:4]],
+        preview_columns=[column["name"] for column in columns],
         columns=[
             GenerateTemplateColumn(
                 name=column["name"],
@@ -64,7 +64,10 @@ def get_template_detail(template_id: str) -> dict:
 
 @router.post("/run")
 def run_generate(request: GenerateRunRequest) -> dict:
-    result = generate_csv_use_case([item.model_dump() for item in request.items])
+    result = generate_csv_use_case(
+        [item.model_dump() for item in request.items],
+        locale=request.locale,
+    )
     generated_files = [_build_generated_file(item).model_dump() for item in result["generated_files"]]
 
     if result["content"] is not None:

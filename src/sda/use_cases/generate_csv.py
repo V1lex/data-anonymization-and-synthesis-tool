@@ -4,12 +4,12 @@ from collections.abc import Sequence
 from typing import Any
 
 from sda.core.domain.errors import GenerationError
-from sda.core.generation.generator import DataGenerator
+from sda.core.generation.generator import DEFAULT_FAKER_LOCALE, DataGenerator
 from sda.io.csv_write import write_csv_bytes
 
 TEMPLATE_DEPENDENCIES: dict[str, tuple[str, ...]] = {
     "users": (),
-    "orders": ("users",),
+    "orders": ("users", "products"),
     "payments": ("users", "orders"),
     "products": (),
     "support_tickets": ("users",),
@@ -79,6 +79,7 @@ def generate_csv_use_case(
     items: list[dict[str, int]],
     *,
     delimiter: str = ",",
+    locale: str = DEFAULT_FAKER_LOCALE,
     generator: DataGenerator | None = None,
 ) -> dict[str, Any]:
     """Use case генерации CSV на уровне приложения.
@@ -104,7 +105,10 @@ def generate_csv_use_case(
     _validate_dependencies(items)
     ordered_items = _order_generation_items(items)
 
-    data_generator = generator or DataGenerator()
+    data_generator = generator or DataGenerator(locale=locale)
+    set_locale = getattr(data_generator, "set_locale", None)
+    if callable(set_locale):
+        set_locale(locale)
     tables = data_generator.generate_tables(ordered_items)
 
     generated_files: list[dict[str, Any]] = []

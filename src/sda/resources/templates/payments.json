@@ -2,7 +2,7 @@
   "template_id": "payments",
   "title": "Платежи",
   "columns": [
-    {"name": "payment_id", "provider": "uuid4"},
+    {"name": "payment_id", "provider": "auto_increment"},
     {"name": "order_id", "provider": "context_ref", "ref": "order_id"},
     {"name": "user_id", "provider": "context_ref", "ref": "user_id"},
     {"name": "status", "provider": "random_element", "elements": ["success", "pending", "failed"]}

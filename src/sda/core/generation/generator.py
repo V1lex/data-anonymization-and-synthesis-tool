@@ -1,16 +1,18 @@
 import json
 from pathlib import Path
 from random import choice
-from uuid import uuid4
 
 from faker import Faker
 
 from sda.core.domain.errors import GenerationError
 
+DEFAULT_FAKER_LOCALE = "ru_RU"
+SUPPORTED_FAKER_LOCALES = ("ru_RU", "en_US")
+
 
 class DataGenerator:
-    def __init__(self) -> None:
-        self.faker = Faker()
+    def __init__(self, *, locale: str = DEFAULT_FAKER_LOCALE) -> None:
+        self.faker = Faker(DEFAULT_FAKER_LOCALE)
         self.templates_dir = Path(__file__).resolve().parents[2] / "resources" / "templates"
         self.context: dict[str, list[dict[str, object]]] = {
             "users": [],
@@ -19,6 +21,23 @@ class DataGenerator:
             "products": [],
             "support_tickets": [],
         }
+        self._sequence_counters: dict[tuple[str, str], int] = {}
+        self.locale = DEFAULT_FAKER_LOCALE
+        self.set_locale(locale)
+
+    def set_locale(self, locale: str) -> None:
+        normalized_locale = str(locale).strip() or DEFAULT_FAKER_LOCALE
+        if normalized_locale not in SUPPORTED_FAKER_LOCALES:
+            raise GenerationError(
+                f"Неподдерживаемая locale '{normalized_locale}'.",
+                details={
+                    "locale": normalized_locale,
+                    "supported_locales": list(SUPPORTED_FAKER_LOCALES),
+                },
+            )
+
+        self.locale = normalized_locale
+        self.faker = Faker(normalized_locale)
 
     def load_template(self, template_id: str) -> dict:
         path = self.templates_dir / f"{template_id}.json"
@@ -60,6 +79,7 @@ class DataGenerator:
         """Сбросить in-memory контекст между сессиями генерации."""
         for key in self.context:
             self.context[key] = []
+        self._sequence_counters = {}
 
     def generate_tables(self, items: list[dict[str, int]]) -> dict[str, list[dict[str, object]]]:
         """Сгенерировать несколько таблиц в порядке элементов запроса.
@@ -130,8 +150,8 @@ class DataGenerator:
     def _generate_column_value(self, template_id: str, column: dict) -> object:
         provider = column["provider"]
 
-        if provider == "uuid4":
-            return str(uuid4())
+        if provider == "auto_increment":
+            return self._next_sequence_value(template_id=template_id, column_name=column["name"])
 
         if provider == "random_int":
             min_value = column.get("min", 0)
@@ -185,6 +205,12 @@ class DataGenerator:
 
         return faker_method()
 
+    def _next_sequence_value(self, *, template_id: str, column_name: str) -> int:
+        counter_key = (template_id, column_name)
+        next_value = self._sequence_counters.get(counter_key, 0) + 1
+        self._sequence_counters[counter_key] = next_value
+        return next_value
+
     def _resolve_context_ref(self, template_id: str, column: dict) -> object:
         ref = column.get("ref")
         if not ref:
@@ -208,6 +234,14 @@ class DataGenerator:
                 )
             selected_order = choice(self.context["orders"])
             return selected_order["order_id"]
+
+        if ref == "product_id":
+            if not self.context["products"]:
+                raise GenerationError(
+                    f"Нельзя сгенерировать '{template_id}', потому что контекст products пуст"
+                )
+            selected_product = choice(self.context["products"])
+            return selected_product["product_id"]
 
         raise GenerationError(
             f"Неподдерживаемая ссылка на контекст '{ref}' "

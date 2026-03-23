@@ -68,7 +68,7 @@ Pydantic-схемы API.
 
 ## Куда добавлять новую логику
 
-### Фича `suggest_pii`
+### Фича `suggest_pii` (post-MVP / Sprint 3)
 - Эвристика: `src/sda/core/ml/pii_suggester.py`
 - Сценарий: `src/sda/use_cases/suggest_pii.py`
 - HTTP endpoint: `src/sda/web/routers/suggest.py`
@@ -87,4 +87,3 @@ Pydantic-схемы API.
 - Читать/писать CSV прямо в роутере, минуя `io`.
 - Вносить HTTP-типизации и статусы ответов в `core`.
 - Вшивать схемы таблиц напрямую в endpoint-код вместо `resources/templates`.
-

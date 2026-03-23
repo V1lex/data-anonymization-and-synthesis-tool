@@ -48,6 +48,13 @@ class InvalidFileTypeError(CsvError):
     error_code = "invalid_file_type"
 
 
+class FileTooLargeError(CsvError):
+    """Возникает, когда CSV превышает допустимый размер."""
+
+    error_code = "file_too_large"
+    status_code = 413
+
+
 class CsvEmptyError(CsvError):
     """Возникает, когда CSV пустой."""
 
@@ -92,3 +99,17 @@ class InvalidRuleError(SdaError):
 
     error_code = "invalid_rule"
     status_code = 400
+
+
+class UploadProcessingError(SdaError):
+    """Возникает, когда загрузка CSV завершилась внутренней ошибкой."""
+
+    error_code = "upload_processing_failed"
+    status_code = 500
+
+
+class AnonymizationFailedError(SdaError):
+    """Возникает, когда анонимизация завершилась внутренней ошибкой."""
+
+    error_code = "anonymization_failed"
+    status_code = 500

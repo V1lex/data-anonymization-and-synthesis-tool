@@ -10,6 +10,10 @@ from sda.use_cases.generate_csv import generate_csv_use_case
 class StubGenerator:
     def __init__(self) -> None:
         self.received_items: list[dict[str, int]] = []
+        self.received_locale = None
+
+    def set_locale(self, locale: str) -> None:
+        self.received_locale = locale
 
     def generate_tables(self, items: list[dict[str, int]]) -> dict[str, list[dict[str, object]]]:
         self.received_items = items
@@ -72,16 +76,37 @@ def test_generate_csv_use_case_orders_items_by_dependencies() -> None:
         [
             {"template_id": "orders", "row_count": 2},
             {"template_id": "users", "row_count": 2},
+            {"template_id": "products", "row_count": 2},
             {"template_id": "payments", "row_count": 2},
         ],
         generator=generator,
     )
 
-    assert [item["template_id"] for item in generator.received_items] == ["users", "orders", "payments"]
+    assert [item["template_id"] for item in generator.received_items] == [
+        "users",
+        "products",
+        "orders",
+        "payments",
+    ]
+
+
+def test_generate_csv_use_case_passes_locale_to_generator() -> None:
+    generator = StubGenerator()
+
+    generate_csv_use_case(
+        [{"template_id": "users", "row_count": 1}],
+        locale="en_US",
+        generator=generator,
+    )
+
+    assert generator.received_locale == "en_US"
 
 
 def test_generate_csv_use_case_rejects_missing_dependencies() -> None:
-    with pytest.raises(GenerationError, match="Для генерации 'orders' нужно также выбрать: users."):
+    with pytest.raises(
+        GenerationError,
+        match="Для генерации 'orders' нужно также выбрать: users, products.",
+    ):
         generate_csv_use_case(
             [{"template_id": "orders", "row_count": 1}],
             generator=StubGenerator(),
