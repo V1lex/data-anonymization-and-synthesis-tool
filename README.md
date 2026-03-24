@@ -50,3 +50,26 @@ python -m pytest -q
 - Выбери несколько зависимых шаблонов, например `users + orders`, и скачай ZIP.
 - В `Anonymize` загрузи CSV, проверь preview, выбери правила вручную и скачай `*_anonymized.csv`.
 - Для CSV с `;` в качестве разделителя не указывай delimiter вручную: backend теперь корректно определяет его автоматически.
+
+## Docker Compose (MVP one-command run)
+
+Run from the project root:
+
+```bash
+docker compose up --build
+```
+
+Services:
+- `frontend` at `http://localhost:8080`
+- `backend` API at `http://localhost:8000`
+- backend healthcheck endpoint: `http://localhost:8000/api/v1/health`
+
+Compose starts 2 containers:
+- `sda-frontend` (Nginx + static UI)
+- `sda-backend` (FastAPI API)
+
+Stop:
+
+```bash
+docker compose down
+```

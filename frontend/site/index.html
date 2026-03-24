@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SDA</title>
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body data-page="home">
+    <main id="app"></main>
+    <script>
+      (() => {
+        const path = window.location.pathname.replace(/\/+$/, "") || "/";
+        const pageByPath = {
+          "/": "home",
+          "/generate": "generate",
+          "/anonymize": "anonymize",
+          "/similar": "similar",
+        };
+
+        const page = pageByPath[path] || "home";
+        document.body.setAttribute("data-page", page);
+
+        const titles = {
+          ru: {
+            home: "SDA",
+            generate: "SDA - Генерация",
+            anonymize: "SDA - Анонимизация",
+            similar: "SDA - Похожие данные",
+          },
+          en: {
+            home: "SDA",
+            generate: "SDA - Generate",
+            anonymize: "SDA - Anonymize",
+            similar: "SDA - Similar Data",
+          },
+        };
+
+        let language = "ru";
+        try {
+          const stored = window.localStorage.getItem("sda_ui_language");
+          if (stored && Object.prototype.hasOwnProperty.call(titles, stored)) {
+            language = stored;
+          }
+        } catch (error) {
+          language = "ru";
+        }
+
+        document.documentElement.lang = language;
+        document.title = titles[language]?.[page] || "SDA";
+      })();
+
+      window.SDA_API_BASE = "/api/v1";
+    </script>
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
