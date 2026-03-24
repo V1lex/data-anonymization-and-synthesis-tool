@@ -1,75 +1,53 @@
 # SDA (Synthetic Data Anonymizer)
 
-Простой учебный проект для кейса: генерация синтетических CSV и анонимизация CSV без использования реальных персональных данных.
+MVP supports two end-to-end flows:
+- `Generate`: create synthetic CSV files.
+- `Anonymize`: upload CSV, apply anonymization rules, download anonymized CSV.
 
-## Что сейчас готово
+## Actual Run Modes
 
-- `GET /`, `GET /generate`, `GET /anonymize` - рабочие web-экраны.
-- `GET /similar` - пока заглушка без реального backend-сценария.
-- `GET /api/v1/health` - healthcheck.
-- `GET /api/v1/generate/templates`
-- `GET /api/v1/generate/templates/{template_id}`
-- `POST /api/v1/generate/run`
-- `POST /api/v1/anonymize/upload`
-- `POST /api/v1/anonymize/run`
-
-## Как запустить
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-uvicorn --app-dir src sda.web.app:app --reload
-```
-
-Для разработки и тестов:
-
-```bash
-python -m pip install -r requirements-dev.txt
-```
-
-После старта открой:
-
-- `http://127.0.0.1:8000/` - главная
-- `http://127.0.0.1:8000/generate` - UI генерации
-- `http://127.0.0.1:8000/anonymize` - UI анонимизации
-- `http://127.0.0.1:8000/docs` - Swagger UI
-
-## Как проверить
-
-```bash
-source .venv/bin/activate
-python -m pip install -r requirements-dev.txt
-python -m pytest -q
-```
-
-Ручная проверка:
-
-- В шапке переключи язык `RU/EN` и проверь, что тексты интерфейса меняются без перезагрузки.
-- В `Generate` выбери Faker locale (`ru_RU` или `en_US`), затем выбери один шаблон и скачай один CSV.
-- Выбери несколько зависимых шаблонов, например `users + orders`, и скачай ZIP.
-- В `Anonymize` загрузи CSV, проверь preview, выбери правила вручную и скачай `*_anonymized.csv`.
-- Для CSV с `;` в качестве разделителя не указывай delimiter вручную: backend теперь корректно определяет его автоматически.
-
-## Docker Compose (MVP one-command run)
-
-Run from the project root:
+### 1) Docker Compose (frontend + backend)
 
 ```bash
 docker compose up --build
 ```
 
-Services:
-- `frontend` at `http://localhost:8080`
-- `backend` API at `http://localhost:8000`
-- backend healthcheck endpoint: `http://localhost:8000/api/v1/health`
-
-Compose starts 2 containers:
-- `sda-frontend` (Nginx + static UI)
-- `sda-backend` (FastAPI API)
+Available endpoints after startup:
+- Frontend UI: `http://localhost:8080`
+- Backend API: `http://localhost:8000/api/v1`
+- Backend healthcheck: `http://localhost:8000/api/v1/health`
+- OpenAPI docs: `http://localhost:8000/docs`
 
 Stop:
 
 ```bash
 docker compose down
 ```
+
+### 2) Local backend run (QA smoke)
+
+```bash
+python -m pip install -r requirements.txt
+uvicorn --app-dir src sda.web.app:app --host 127.0.0.1 --port 8000
+```
+
+## API Flows (Current Contract)
+
+Generate flow:
+1. `GET /api/v1/generate/templates`
+2. `POST /api/v1/generate/run`
+3. Decode `content_base64` (single template) or `archive_base64` (multiple templates)
+
+Anonymize flow:
+1. `POST /api/v1/anonymize/upload` (multipart form-data, CSV file)
+2. `POST /api/v1/anonymize/run` (`upload_id` + rules)
+3. Decode `content_base64` to anonymized CSV
+
+## Smoke/E2E Status
+
+Latest smoke/e2e report: [docs/sprint-2/test-report-mvp.md](docs/sprint-2/test-report-mvp.md)
+
+Artifacts from the latest run:
+- `artifacts/e2e/users_generated.csv`
+- `artifacts/e2e/users_anonymized.csv`
+- `artifacts/e2e/smoke_e2e_summary.json`
