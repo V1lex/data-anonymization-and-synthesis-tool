@@ -1,11 +1,11 @@
 # SDA (Synthetic Data Anonymizer)
 
-Простой учебный проект для кейса: генерация синтетических CSV и анонимизация CSV без использования реальных персональных данных.
+Инструмент для генерации синтетических CSV и анонимизации CSV без использования реальных персональных данных.
 
 ## Что сейчас готово
 
 - `GET /`, `GET /generate`, `GET /anonymize` - рабочие web-экраны.
-- `GET /similar` - пока заглушка без реального backend-сценария.
+- `GET /similar` - заглушка без реального backend-сценария.
 - `GET /api/v1/health` - healthcheck.
 - `GET /api/v1/generate/templates`
 - `GET /api/v1/generate/templates/{template_id}`
@@ -13,19 +13,18 @@
 - `POST /api/v1/anonymize/upload`
 - `POST /api/v1/anonymize/run`
 
-## Как запустить
+## Запуск через Docker
+
+Сборка образа:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-uvicorn --app-dir src sda.web.app:app --reload
+docker build -t sda .
 ```
 
-Для разработки и тестов:
+Запуск контейнера:
 
 ```bash
-python -m pip install -r requirements-dev.txt
+docker run --rm -d -p 8000:8000 --name sda-app sda
 ```
 
 После старта открой:
@@ -35,18 +34,31 @@ python -m pip install -r requirements-dev.txt
 - `http://127.0.0.1:8000/anonymize` - UI анонимизации
 - `http://127.0.0.1:8000/docs` - Swagger UI
 
-## Как проверить
+Остановить контейнер:
 
 ```bash
-source .venv/bin/activate
-python -m pip install -r requirements-dev.txt
-python -m pytest -q
+docker stop sda-app
 ```
 
-Ручная проверка:
+## Локальный запуск без Docker
 
-- В шапке переключи язык `RU/EN` и проверь, что тексты интерфейса меняются без перезагрузки.
-- В `Generate` выбери Faker locale (`ru_RU` или `en_US`), затем выбери один шаблон и скачай один CSV.
-- Выбери несколько зависимых шаблонов, например `users + orders`, и скачай ZIP.
-- В `Anonymize` загрузи CSV, проверь preview, выбери правила вручную и скачай `*_anonymized.csv`.
-- Для CSV с `;` в качестве разделителя не указывай delimiter вручную: backend теперь корректно определяет его автоматически.
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+uvicorn --app-dir src sda.web.app:app --reload
+```
+
+## Разработка и тесты
+
+Установка dev-зависимостей:
+
+```bash
+python -m pip install -r requirements-dev.txt
+```
+
+Запуск тестов:
+
+```bash
+python -m pytest -q
+```
