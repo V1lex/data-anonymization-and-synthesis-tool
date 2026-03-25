@@ -60,8 +60,8 @@ const uiMessages = {
         description: "Таблица платежей с картами и транзакциями",
       },
       products: {
-        label: "Продукты",
-        description: "Каталог продуктов с ценами",
+        label: "Товары",
+        description: "Каталог товаров с ценами",
       },
       support_tickets: {
         label: "Тикеты поддержки",
@@ -106,7 +106,7 @@ const uiMessages = {
       subtitle: "Загрузите CSV файл и настройте методы анонимизации",
       uploadTitle: "Загрузите CSV файл",
       uploadHint: "Перетащите файл сюда или нажмите для выбора",
-      uploadBadge: "Поддерживаются только .csv файлы",
+      uploadBadge: "Можно загрузить CSV до {size}",
       fileTooLarge: "Файл слишком большой. Максимальный размер: {size}.",
       infoMeta: "{columnCount} колонок | {rowCount} записей",
       hidePreview: "Скрыть превью",
@@ -206,7 +206,7 @@ const uiMessages = {
       subtitle: "Upload a CSV file and choose anonymization methods",
       uploadTitle: "Upload CSV file",
       uploadHint: "Drag a file here or click to choose",
-      uploadBadge: "Only .csv files are supported",
+      uploadBadge: "Upload CSV up to {size}",
       fileTooLarge: "File is too large. Max size: {size}.",
       infoMeta: "{columnCount} columns | {rowCount} rows",
       hidePreview: "Hide preview",
@@ -693,7 +693,7 @@ function renderHome(root) {
 
   root.innerHTML = renderLayout(`
     <section class="home-hero">
-      <h1 class="home-title">DataGen Pro</h1>
+      <h1 class="home-title">Synthetic Data Generator & Anonymizer</h1>
     </section>
     <section class="home-cards">
       ${cards.map(buildHomeCard).join("")}
@@ -1040,7 +1040,7 @@ function renderAnonymize(root) {
                   <span class="upload-circle">${icon("upload")}</span>
                   <h3 class="upload-title">${escapeHtml(anonymizeMessages.uploadTitle)}</h3>
                   <p class="upload-hint">${escapeHtml(anonymizeMessages.uploadHint)}</p>
-                  <div class="upload-badge-text">${escapeHtml(anonymizeMessages.uploadBadge)}</div>
+                  <div class="upload-badge-text">${escapeHtml(t("anonymize.uploadBadge", { size: formatMegabytes(MAX_UPLOAD_BYTES) }))}</div>
                 </div>
                 <input type="file" id="csv-upload" accept=".csv,text/csv" />
               </label>

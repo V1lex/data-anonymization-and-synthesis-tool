@@ -1,10 +1,10 @@
-# SDA (Synthetic Data Anonymizer)
+# SDA (Synthetic Data Generator & Anonymizer)
 
 Простой учебный проект для кейса: генерация синтетических CSV и анонимизация CSV без использования реальных персональных данных.
 
 ## Что это за проект
 
-`SDA` = `Synthetic Data Anonymizer`  
+`SDA` = `Synthetic Data Generator & Anonymizer`  
 Инструмент для **синтетических данных** и **анонимизации**.
 
 Цель MVP:
@@ -50,7 +50,7 @@
 
 #### `src/sda/`
 
-`sda` = `Synthetic Data Anonymizer` (основной пакет приложения).
+`sda` = `Synthetic Data Generator & Anonymizer` (основной пакет приложения).
 
 ##### `src/sda/__init__.py`
 - Что это: инициализация Python-пакета `sda`.

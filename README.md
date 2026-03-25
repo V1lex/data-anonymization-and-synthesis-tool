@@ -1,4 +1,4 @@
-# SDA (Synthetic Data Anonymizer)
+# SDA (Synthetic Data Generator & Anonymizer)
 
 Инструмент для генерации синтетических CSV и анонимизации CSV без использования реальных персональных данных.
 
