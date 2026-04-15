@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from typing import Any
 
 from sda.core.domain.errors import GenerationError
+from sda.core.generation.validators import apply_generation_semantics
 from sda.core.generation.generator import DEFAULT_FAKER_LOCALE, DataGenerator
 from sda.io.csv_write import write_csv_bytes
 
@@ -110,6 +111,7 @@ def generate_csv_use_case(
     if callable(set_locale):
         set_locale(locale)
     tables = data_generator.generate_tables(ordered_items)
+    tables = apply_generation_semantics(tables, locale=locale)
 
     generated_files: list[dict[str, Any]] = []
     total_rows = 0

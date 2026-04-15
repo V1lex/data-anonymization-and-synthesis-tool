@@ -83,8 +83,8 @@ const uiMessages = {
       anonymizeDescription: "Защитите персональные данные. Загрузите CSV и выберите методы анонимизации для каждого поля.",
       anonymizeAction: "Анонимизировать",
       similarTitle: "Похожие данные",
-      similarDescription: "Раздел пока что не доступен.",
-      similarAction: "Открыть раздел",
+      similarDescription: "Загрузите CSV, проанализируйте структуру и получите похожий synthetic CSV через SDV.",
+      similarAction: "Открыть Similar",
     },
     generate: {
       title: "Генерация синтетических данных",
@@ -119,10 +119,22 @@ const uiMessages = {
     },
     similar: {
       title: "Генерация похожих данных",
-      subtitle: "Маршрут сохранён в дизайне проекта, но логика этого режима в текущей версии недоступна",
-      unavailableTitle: "Раздел пока недоступен",
-      unavailableHint: "Сейчас в проекте активны сценарии генерации и анонимизации. Этот экран оставлен только как визуальный маршрут.",
-      soon: "Скоро здесь будет отдельный сценарий",
+      subtitle: "Загрузите CSV, просмотрите анализ структуры и сгенерируйте похожий датасет через SDV.",
+      uploadTitle: "Загрузите CSV для анализа",
+      uploadHint: "Перетащите файл сюда или нажмите для выбора",
+      uploadBadge: "Можно загрузить CSV до {size}",
+      infoMeta: "{columnCount} колонок | {rowCount} записей",
+      hidePreview: "Скрыть превью",
+      showPreview: "Показать превью",
+      previewNote: "Показано {shown} из {total} записей",
+      columnsTitle: "Распознанные колонки",
+      summaryTitle: "Результат анализа",
+      targetTitle: "Параметры генерации",
+      targetHint: "Укажите, сколько строк нужно сгенерировать в похожем CSV.",
+      targetRows: "Число строк",
+      uploadAnother: "Загрузить другой файл",
+      running: "Генерация похожего CSV...",
+      run: "Сгенерировать и скачать",
     },
     errors: {
       invalid_file_type: "Поддерживаются только CSV-файлы.",
@@ -136,6 +148,9 @@ const uiMessages = {
       unknown_column: "Правило ссылается на отсутствующую колонку.",
       template_not_found: "Шаблон не найден.",
       anonymization_failed: "Не удалось анонимизировать данные.",
+      analysis_not_found: "Результат анализа не найден или уже истёк.",
+      analysis_failed: "Не удалось проанализировать CSV для Similar.",
+      synthesis_failed: "Не удалось сгенерировать похожий CSV.",
     },
   },
   en: {
@@ -183,8 +198,8 @@ const uiMessages = {
       anonymizeDescription: "Protect personal data. Upload a CSV file and choose anonymization methods for each field.",
       anonymizeAction: "Anonymize data",
       similarTitle: "Similar data",
-      similarDescription: "Section is currently unavailable.",
-      similarAction: "Open section",
+      similarDescription: "Upload a CSV file, analyze its structure, and generate a similar synthetic CSV with SDV.",
+      similarAction: "Open Similar",
     },
     generate: {
       title: "Synthetic data generation",
@@ -219,10 +234,22 @@ const uiMessages = {
     },
     similar: {
       title: "Similar data generation",
-      subtitle: "This route remains in the design, but the logic is unavailable in the current version",
-      unavailableTitle: "Section is unavailable",
-      unavailableHint: "The current project only includes generation and anonymization flows. This screen is kept as a visual route.",
-      soon: "A separate flow will appear here later",
+      subtitle: "Upload a CSV file, inspect the detected structure, and generate a similar dataset through SDV.",
+      uploadTitle: "Upload CSV for analysis",
+      uploadHint: "Drag a file here or click to choose",
+      uploadBadge: "Upload CSV up to {size}",
+      infoMeta: "{columnCount} columns | {rowCount} rows",
+      hidePreview: "Hide preview",
+      showPreview: "Show preview",
+      previewNote: "Showing {shown} of {total} rows",
+      columnsTitle: "Detected columns",
+      summaryTitle: "Analysis summary",
+      targetTitle: "Generation settings",
+      targetHint: "Choose how many rows should be generated in the similar CSV output.",
+      targetRows: "Target rows",
+      uploadAnother: "Upload another file",
+      running: "Generating similar CSV...",
+      run: "Generate and download",
     },
     errors: {
       invalid_file_type: "Only CSV files are supported.",
@@ -236,6 +263,9 @@ const uiMessages = {
       unknown_column: "A rule points to a missing column.",
       template_not_found: "Template not found.",
       anonymization_failed: "Could not anonymize data.",
+      analysis_not_found: "The analysis result was not found or has expired.",
+      analysis_failed: "Could not analyze the CSV for Similar.",
+      synthesis_failed: "Could not generate a similar CSV.",
     },
   },
 };
@@ -1272,23 +1302,327 @@ function renderAnonymize(root) {
 }
 
 function renderSimilar(root) {
-  const similarMessages = uiMessages[getLanguage()].similar;
-  root.innerHTML = renderLayout(`
-    ${buildPageIntro({
-      accent: "orange",
-      title: similarMessages.title,
-      subtitle: similarMessages.subtitle,
-    })}
-    <div class="upload-wrapper">
-      <article class="upload-panel static accent-orange">
-        <span class="upload-circle">${icon("copy")}</span>
-        <h3 class="upload-title">${escapeHtml(similarMessages.unavailableTitle)}</h3>
-        <p class="upload-hint">${escapeHtml(similarMessages.unavailableHint)}</p>
-        <div class="upload-badge-text orange">${escapeHtml(similarMessages.soon)}</div>
-      </article>
-    </div>
-  `);
-  attachCommonControls(() => renderSimilar(root));
+  const state = {
+    uploading: false,
+    running: false,
+    showPreview: false,
+    error: "",
+    success: "",
+    analysis: null,
+    targetRows: 100,
+  };
+  let dragDepth = 0;
+
+  const uploadCsvFile = async (file) => {
+    if (!file) {
+      return;
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      state.error = t("anonymize.fileTooLarge", { size: formatMegabytes(MAX_UPLOAD_BYTES) });
+      render();
+      return;
+    }
+
+    state.uploading = true;
+    state.error = "";
+    state.success = "";
+    render();
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("has_header", "true");
+      formData.append("preview_rows_limit", "5");
+      const response = await fetch(`${apiBase}/similar/analyze`, {
+        method: "POST",
+        body: formData,
+      });
+      const payload = await parseApiResponse(response);
+      state.analysis = payload;
+      state.targetRows = Math.min(10000, Math.max(1, payload.row_count));
+      state.showPreview = false;
+    } catch (error) {
+      state.error = error.message;
+    } finally {
+      state.uploading = false;
+      render();
+    }
+  };
+
+  const resetAnalysis = () => {
+    state.uploading = false;
+    state.running = false;
+    state.showPreview = false;
+    state.error = "";
+    state.success = "";
+    state.analysis = null;
+    state.targetRows = 100;
+    dragDepth = 0;
+  };
+
+  const render = () => {
+    const similarMessages = uiMessages[getLanguage()].similar;
+    const analysis = state.analysis;
+    root.innerHTML = renderLayout(`
+      ${buildPageIntro({
+        accent: "orange",
+        title: similarMessages.title,
+        subtitle: similarMessages.subtitle,
+      })}
+      ${
+        !analysis
+          ? `
+            <div class="upload-wrapper">
+              <label class="upload-dropzone accent-orange" id="similar-upload-dropzone">
+                <div class="upload-panel">
+                  <span class="upload-circle">${icon("copy")}</span>
+                  <h3 class="upload-title">${escapeHtml(similarMessages.uploadTitle)}</h3>
+                  <p class="upload-hint">${escapeHtml(similarMessages.uploadHint)}</p>
+                  <div class="upload-badge-text orange">${escapeHtml(t("similar.uploadBadge", { size: formatMegabytes(MAX_UPLOAD_BYTES) }))}</div>
+                </div>
+                <input type="file" id="similar-upload" accept=".csv,text/csv" />
+              </label>
+            </div>
+          `
+          : `
+            ${buildStatsCards([
+              { accent: "orange", label: similarMessages.targetRows, value: formatCount(state.targetRows) },
+              { accent: "orange", label: getLanguage() === "en" ? "Columns" : "Колонки", value: formatCount(analysis.column_count) },
+              { accent: "orange", label: getLanguage() === "en" ? "Source rows" : "Исходные строки", value: formatCount(analysis.row_count) },
+            ])}
+            <article class="info-card accent-orange">
+              <span class="info-orb"></span>
+              <div class="info-card-row">
+                <div>
+                  <h3 class="info-title">${escapeHtml(analysis.file_name)}</h3>
+                  <p class="info-meta">${escapeHtml(t("similar.infoMeta", {
+                    columnCount: formatCount(analysis.column_count),
+                    rowCount: formatCount(analysis.row_count),
+                  }))}</p>
+                </div>
+                <button type="button" class="preview-button accent-orange" id="toggle-similar-preview">
+                  <span class="preview-button-icon">${state.showPreview ? icon("eye-off") : icon("eye")}</span>
+                  <span class="preview-button-label">${escapeHtml(state.showPreview ? similarMessages.hidePreview : similarMessages.showPreview)}</span>
+                </button>
+              </div>
+              <div class="preview-panel ${state.showPreview ? "is-open" : ""}" id="similar-preview-panel" aria-hidden="${state.showPreview ? "false" : "true"}">
+                <div class="preview-panel-inner">
+                  <table>
+                    <thead>
+                      <tr>${analysis.columns.map((column) => `<th>${escapeHtml(column.name)}</th>`).join("")}</tr>
+                    </thead>
+                    <tbody>
+                      ${(analysis.preview_rows || [])
+                        .map(
+                          (row) => `
+                            <tr>
+                              ${analysis.columns
+                                .map((column) => `<td>${escapeHtml(row[column.name] == null ? "" : row[column.name])}</td>`)
+                                .join("")}
+                            </tr>
+                          `,
+                        )
+                        .join("")}
+                    </tbody>
+                  </table>
+                  ${
+                    (analysis.preview_rows || []).length > 0
+                      ? `<p class="preview-note">${escapeHtml(t("similar.previewNote", {
+                        shown: formatCount(analysis.preview_rows.length),
+                        total: formatCount(analysis.row_count),
+                      }))}</p>`
+                      : ""
+                  }
+                </div>
+              </div>
+            </article>
+            <section class="rules-section">
+              <article class="rule-card">
+                <h3 class="rule-title">${escapeHtml(similarMessages.columnsTitle)}</h3>
+                <div class="chip-list tight">
+                  ${analysis.columns
+                    .map((column) => `<span class="field-chip orange">${escapeHtml(`${column.name} · ${column.inferred_type}`)}</span>`)
+                    .join("")}
+                </div>
+              </article>
+              <article class="rule-card">
+                <h3 class="rule-title">${escapeHtml(similarMessages.summaryTitle)}</h3>
+                <ul class="summary-list">
+                  ${(analysis.summary || []).map((item) => `<li>${escapeHtml(item)}</li>`).join("")}
+                  ${(analysis.warnings || []).map((item) => `<li class="warning">${escapeHtml(item)}</li>`).join("")}
+                </ul>
+              </article>
+              <article class="rule-card">
+                <h3 class="rule-title">${escapeHtml(similarMessages.targetTitle)}</h3>
+                <p class="rule-meta">${escapeHtml(similarMessages.targetHint)}</p>
+                <div class="similar-target-row">
+                  <span class="similar-target-label">${escapeHtml(similarMessages.targetRows)}</span>
+                  <div class="count-stepper">
+                    <button type="button" data-action="decrease-similar-rows">-</button>
+                    <input
+                      type="number"
+                      min="1"
+                      max="10000"
+                      value="${state.targetRows}"
+                      data-action="set-similar-rows"
+                      aria-label="${escapeHtml(similarMessages.targetRows)}"
+                    />
+                    <button type="button" data-action="increase-similar-rows">+</button>
+                  </div>
+                </div>
+              </article>
+            </section>
+            <div class="center-actions spaced">
+              <button type="button" class="secondary-action" id="similar-upload-another">${escapeHtml(similarMessages.uploadAnother)}</button>
+              ${buildDownloadButton({
+                id: "run-similar",
+                label: state.running ? similarMessages.running : similarMessages.run,
+                accent: "orange",
+                disabled: state.running,
+                done: Boolean(state.success) && !state.running,
+              })}
+            </div>
+          `
+      }
+      ${buildNotice("error", state.error)}
+      ${buildLoadingOverlay(state.uploading || state.running, "orange")}
+    `);
+
+    attachCommonControls(render);
+
+    if (!analysis) {
+      const uploadDropzone = document.getElementById("similar-upload-dropzone");
+      const uploadInput = document.getElementById("similar-upload");
+      if (uploadDropzone) {
+        const setDragState = (active) => {
+          uploadDropzone.classList.toggle("is-dragover", active);
+        };
+
+        uploadDropzone.addEventListener("dragenter", (event) => {
+          event.preventDefault();
+          dragDepth += 1;
+          setDragState(true);
+        });
+
+        uploadDropzone.addEventListener("dragover", (event) => {
+          event.preventDefault();
+          if (event.dataTransfer) {
+            event.dataTransfer.dropEffect = "copy";
+          }
+          setDragState(true);
+        });
+
+        uploadDropzone.addEventListener("dragleave", (event) => {
+          event.preventDefault();
+          dragDepth = Math.max(0, dragDepth - 1);
+          if (dragDepth === 0) {
+            setDragState(false);
+          }
+        });
+
+        uploadDropzone.addEventListener("drop", async (event) => {
+          event.preventDefault();
+          dragDepth = 0;
+          setDragState(false);
+          const file = event.dataTransfer?.files && event.dataTransfer.files[0];
+          await uploadCsvFile(file);
+        });
+      }
+
+      if (uploadInput) {
+        uploadInput.addEventListener("change", async (event) => {
+          const file = event.target.files && event.target.files[0];
+          await uploadCsvFile(file);
+        });
+      }
+      return;
+    }
+
+    const togglePreviewButton = document.getElementById("toggle-similar-preview");
+    if (togglePreviewButton) {
+      const previewPanel = document.getElementById("similar-preview-panel");
+      const previewButtonIcon = togglePreviewButton.querySelector(".preview-button-icon");
+      const previewButtonLabel = togglePreviewButton.querySelector(".preview-button-label");
+      togglePreviewButton.addEventListener("click", () => {
+        state.showPreview = !state.showPreview;
+        if (previewPanel) {
+          previewPanel.classList.toggle("is-open", state.showPreview);
+          previewPanel.setAttribute("aria-hidden", state.showPreview ? "false" : "true");
+        }
+        if (previewButtonIcon) {
+          previewButtonIcon.innerHTML = state.showPreview ? icon("eye-off") : icon("eye");
+        }
+        if (previewButtonLabel) {
+          previewButtonLabel.textContent = state.showPreview ? t("similar.hidePreview") : t("similar.showPreview");
+        }
+      });
+    }
+
+    document.querySelectorAll("[data-action='decrease-similar-rows']").forEach((element) => {
+      element.addEventListener("click", () => {
+        state.targetRows = Math.max(1, state.targetRows - 10);
+        state.success = "";
+        render();
+      });
+    });
+
+    document.querySelectorAll("[data-action='increase-similar-rows']").forEach((element) => {
+      element.addEventListener("click", () => {
+        state.targetRows = Math.min(10000, state.targetRows + 10);
+        state.success = "";
+        render();
+      });
+    });
+
+    document.querySelectorAll("[data-action='set-similar-rows']").forEach((element) => {
+      element.addEventListener("input", () => {
+        const nextValue = Number.parseInt(element.value, 10);
+        state.targetRows = Number.isFinite(nextValue)
+          ? Math.min(10000, Math.max(1, nextValue))
+          : 1;
+        state.success = "";
+      });
+      element.addEventListener("change", render);
+    });
+
+    const uploadAnotherButton = document.getElementById("similar-upload-another");
+    if (uploadAnotherButton) {
+      uploadAnotherButton.addEventListener("click", () => {
+        resetAnalysis();
+        render();
+      });
+    }
+
+    const runButton = document.getElementById("run-similar");
+    if (runButton) {
+      runButton.addEventListener("click", async () => {
+        state.running = true;
+        state.error = "";
+        state.success = "";
+        render();
+        try {
+          const response = await fetch(`${apiBase}/similar/run`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              analysis_id: analysis.analysis_id,
+              target_rows: state.targetRows,
+            }),
+          });
+          const payload = await parseApiResponse(response);
+          downloadBase64File(payload.content_base64, payload.file_name, "text/csv;charset=utf-8");
+          state.success = "done";
+        } catch (error) {
+          state.error = error.message;
+        } finally {
+          state.running = false;
+          render();
+        }
+      });
+    }
+  };
+
+  render();
 }
 
 function startTypewriterLoop() {

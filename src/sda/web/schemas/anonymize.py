@@ -24,9 +24,14 @@ class UploadedCsvColumn(BaseModel):
     index: int = Field(..., ge=0, le=MAX_CSV_COLUMNS - 1)
     name: str = Field(..., min_length=1, max_length=128)
     inferred_type: str = Field(..., min_length=1, max_length=32)
+    detected_type: str = Field(..., min_length=1, max_length=32)
     sample_values: list[str] = Field(default_factory=list, max_length=MAX_SAMPLE_VALUES)
     null_ratio: float = Field(..., ge=0.0, le=1.0)
     unique_ratio: float = Field(..., ge=0.0, le=1.0)
+    reason: str | None = Field(default=None, max_length=256)
+    suggested_method: AnonymizationMethod | None = None
+    confidence: float = Field(default=0.0, ge=0.0, le=1.0)
+    hint: str | None = Field(default=None, max_length=256)
     unsupported_methods: dict[str, str] = Field(default_factory=dict, max_length=5)
 
     @field_validator("name")

@@ -28,6 +28,10 @@ def test_post_anonymize_upload_returns_columns_and_preview() -> None:
     assert payload["row_count"] == 2
     assert payload["column_count"] == 3
     assert payload["columns"][1]["name"] == "email"
+    assert payload["columns"][1]["detected_type"] == "email"
+    assert payload["columns"][1]["suggested_method"] == "mask"
+    assert payload["columns"][1]["reason"]
+    assert payload["columns"][1]["hint"]
     assert "mask" in payload["columns"][2]["unsupported_methods"]
     assert payload["preview_rows"][0]["full_name"] == "Alice Example"
 

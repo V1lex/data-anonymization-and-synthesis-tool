@@ -3,102 +3,82 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from sda.core.anonymization.field_detector import FieldDetector
 from sda.core.anonymization.anonymizer import CsvAnonymizer
 from sda.core.anonymization.rules import ensure_supported_method, get_method_title, get_supported_methods
 from sda.core.domain.errors import FileTooLargeError, InvalidRuleError, UnknownColumnError, ValidationError
 from sda.core.domain.limits import MAX_CSV_COLUMNS, MAX_CSV_ROWS, MAX_UPLOAD_BYTES
 from sda.io.csv_read import SUPPORTED_DELIMITERS, read_csv
 from sda.io.csv_write import write_csv_bytes
+from sda.use_cases.analyze_columns import analyze_columns
 
 
-def _is_number(value: str) -> bool:
-    try:
-        float(value)
-        return True
-    except ValueError:
-        return False
+DATE_LIKE_TYPES = {"birth_date", "date", "datetime"}
+TEXT_LIKE_TYPES = {"email", "phone", "full_name", "address", "vehicle_plate", "id_like", "text", "city", "category"}
 
 
-def _extract_year(value: str) -> str | None:
-    for token in (value, value[:10]):
-        for chunk in token.replace("/", "-").replace(".", "-").split("-"):
-            if len(chunk) == 4 and chunk.isdigit():
-                return chunk
-    return None
-
-
-def _infer_type(values: Sequence[str]) -> str:
-    non_empty = [value.strip() for value in values if value is not None and value.strip()]
-    if not non_empty:
-        return "string"
-    if all(_is_number(value) for value in non_empty):
-        return "number"
-    if all(_extract_year(value) for value in non_empty):
-        return "date"
-    lowered = {value.lower() for value in non_empty}
-    if lowered.issubset({"true", "false", "0", "1", "yes", "no"}):
-        return "boolean"
-    return "string"
-
-
-def _is_identifier_column(column_name: str) -> bool:
-    lowered = column_name.lower()
-    return lowered == "id" or lowered.endswith("_id") or "uuid" in lowered or "identifier" in lowered
+def _detect_type(column_name: str, values: Sequence[str]) -> str:
+    detector = FieldDetector()
+    detection = detector.detect(
+        column_name=column_name,
+        values=[str(value) for value in values if value is not None],
+    )
+    return detection.detected_type
 
 
 def _get_method_compatibility_error(*, column_name: str, method: str, values: Sequence[str]) -> tuple[str | None, str]:
     non_empty_values = [value.strip() for value in values if value and value.strip()]
     if not non_empty_values:
-        return None, "string"
+        return None, "text"
 
-    inferred_type = _infer_type(non_empty_values)
+    detected_type = _detect_type(column_name, non_empty_values)
     method_title = get_method_title(method)
 
     if method == "generalize_year":
-        if any(_extract_year(value) is None for value in non_empty_values):
+        if detected_type not in DATE_LIKE_TYPES:
             return (
                 f"Метод '{method_title}' нельзя применить к колонке '{column_name}': значения не похожи на даты.",
-                inferred_type,
+                detected_type,
             )
-        return None, inferred_type
+        return None, detected_type
 
     if method == "pseudonymize":
-        if inferred_type == "date":
+        if detected_type in DATE_LIKE_TYPES:
             return (
                 f"Метод '{method_title}' не подходит для колонки '{column_name}': для дат используйте 'Обобщение до года' или 'Скрытие'.",
-                inferred_type,
+                detected_type,
             )
-        if inferred_type == "boolean":
+        if detected_type == "boolean":
             return (
                 f"Метод '{method_title}' не подходит для колонки '{column_name}': булевы значения лучше оставить без изменений или скрыть.",
-                inferred_type,
+                detected_type,
             )
-        if inferred_type == "number" and not _is_identifier_column(column_name):
+        if detected_type == "number":
             return (
                 f"Метод '{method_title}' не подходит для числовой колонки '{column_name}': используйте 'Скрытие' или оставьте значение без изменений.",
-                inferred_type,
+                detected_type,
             )
-        return None, inferred_type
+        return None, detected_type
 
     if method == "mask":
-        if inferred_type == "date":
+        if detected_type in DATE_LIKE_TYPES:
             return (
                 f"Метод '{method_title}' не подходит для колонки '{column_name}': для дат используйте 'Обобщение до года' или 'Скрытие'.",
-                inferred_type,
+                detected_type,
             )
-        if inferred_type == "boolean":
+        if detected_type == "boolean":
             return (
                 f"Метод '{method_title}' не подходит для колонки '{column_name}': булевы значения лучше оставить без изменений или скрыть.",
-                inferred_type,
+                detected_type,
             )
-        if inferred_type == "number" and not _is_identifier_column(column_name):
+        if detected_type == "number":
             return (
                 f"Метод '{method_title}' не подходит для числовой колонки '{column_name}': он рассчитан на текст, email, телефоны и идентификаторы.",
-                inferred_type,
+                detected_type,
             )
-        return None, inferred_type
+        return None, detected_type
 
-    return None, inferred_type
+    return None, detected_type
 
 
 def _validate_rule_applicability(*, column_name: str, method: str, values: Sequence[str]) -> None:
@@ -133,28 +113,10 @@ def _build_unsupported_methods(column_name: str, values: Sequence[str]) -> dict[
 
 
 def _build_uploaded_columns(header: Sequence[str], rows: Sequence[dict[str, str]]) -> list[dict[str, Any]]:
-    column_descriptions: list[dict[str, Any]] = []
-    total_rows = len(rows) or 1
-
-    for index, column_name in enumerate(header):
-        values = [row.get(column_name, "") for row in rows]
-        non_empty_values = [value for value in values if value.strip()]
-        sample_values = non_empty_values[:2]
-        unique_ratio = len(set(non_empty_values)) / max(len(non_empty_values), 1)
-        null_ratio = 1.0 - (len(non_empty_values) / total_rows)
-        inferred_type = _infer_type(values)
-        column_descriptions.append(
-            {
-                "index": index,
-                "name": column_name,
-                "inferred_type": inferred_type,
-                "sample_values": sample_values,
-                "null_ratio": round(null_ratio, 4),
-                "unique_ratio": round(unique_ratio, 4),
-                "unsupported_methods": _build_unsupported_methods(column_name, values),
-            }
-        )
-
+    column_descriptions = analyze_columns(header=header, rows=rows)
+    for column in column_descriptions:
+        values = [row.get(column["name"], "") for row in rows]
+        column["unsupported_methods"] = _build_unsupported_methods(column["name"], values)
     return column_descriptions
 
 

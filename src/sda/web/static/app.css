@@ -516,6 +516,15 @@ svg {
   font-size: 0.75rem;
 }
 
+.chip-list.tight {
+  margin-top: 0;
+}
+
+.field-chip.orange {
+  background: var(--orange-soft);
+  color: var(--orange);
+}
+
 .count-stepper {
   display: flex;
   align-items: center;
@@ -650,6 +659,12 @@ svg {
   border-color: transparent;
 }
 
+.preview-button.accent-orange {
+  color: var(--orange);
+  background: var(--orange-soft);
+  border-color: transparent;
+}
+
 .preview-button svg {
   width: 16px;
   height: 16px;
@@ -684,12 +699,16 @@ svg {
 }
 
 .upload-dropzone.is-dragover .upload-panel {
-  border-color: rgba(16, 185, 129, 0.8);
-  box-shadow: 0 0 28px rgba(16, 185, 129, 0.16);
+  border-color: var(--accent, rgba(16, 185, 129, 0.8));
+  box-shadow: 0 0 28px color-mix(in srgb, var(--accent, #10b981) 16%, transparent);
 }
 
 .upload-dropzone.accent-emerald:hover .upload-panel {
   border-color: rgba(16, 185, 129, 0.8);
+}
+
+.upload-dropzone.accent-orange:hover .upload-panel {
+  border-color: rgba(249, 115, 22, 0.8);
 }
 
 .upload-circle {
@@ -767,7 +786,7 @@ svg {
   width: 96px;
   height: 96px;
   border-radius: 999px;
-  background: var(--emerald);
+  background: var(--accent, var(--emerald));
   opacity: 0.1;
 }
 
@@ -833,7 +852,7 @@ td {
 }
 
 th {
-  color: var(--emerald);
+  color: var(--accent, var(--emerald));
 }
 
 .preview-note {
@@ -865,6 +884,33 @@ th {
 .rule-meta {
   margin: 0 0 16px;
   color: #71717a;
+}
+
+.summary-list {
+  margin: 0;
+  padding-left: 20px;
+  color: #52525b;
+  line-height: 1.6;
+}
+
+.summary-list li + li {
+  margin-top: 6px;
+}
+
+.summary-list li.warning {
+  color: var(--orange);
+}
+
+.similar-target-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.similar-target-label {
+  color: #3f3f46;
+  font-weight: 500;
 }
 
 .method-list {
@@ -972,6 +1018,12 @@ th {
   --loader-text-color: #86efac;
   --loader-main: #22c55e;
   --loader-soft: #bbf7d0;
+}
+
+.loading-overlay.accent-orange {
+  --loader-text-color: #fdba74;
+  --loader-main: #f97316;
+  --loader-soft: #fed7aa;
 }
 
 .loader {
@@ -1121,6 +1173,11 @@ th {
 
   .center-actions.spaced {
     justify-content: flex-start;
+  }
+
+  .similar-target-row {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 

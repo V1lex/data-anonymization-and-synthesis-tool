@@ -87,6 +87,13 @@ class UploadNotFoundError(SdaError):
     status_code = 404
 
 
+class AnalysisNotFoundError(SdaError):
+    """Возникает, когда analysis_id не найден."""
+
+    error_code = "analysis_not_found"
+    status_code = 404
+
+
 class UnknownColumnError(SdaError):
     """Возникает, когда правило ссылается на отсутствующую колонку."""
 
@@ -112,4 +119,18 @@ class AnonymizationFailedError(SdaError):
     """Возникает, когда анонимизация завершилась внутренней ошибкой."""
 
     error_code = "anonymization_failed"
+    status_code = 500
+
+
+class AnalysisFailedError(SdaError):
+    """Возникает, когда анализ CSV для Similar завершился внутренней ошибкой."""
+
+    error_code = "analysis_failed"
+    status_code = 500
+
+
+class SynthesisFailedError(SdaError):
+    """Возникает, когда генерация похожего CSV завершилась внутренней ошибкой."""
+
+    error_code = "synthesis_failed"
     status_code = 500

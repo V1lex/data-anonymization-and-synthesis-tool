@@ -25,9 +25,14 @@ def test_prepare_anonymize_upload_builds_preview() -> None:
     assert result["delimiter"] == ","
     assert result["preview_rows"][0]["full_name"] == "Alice Example"
     assert [column["name"] for column in result["columns"]] == ["full_name", "email", "birth_date"]
+    assert result["columns"][0]["detected_type"] == "full_name"
+    assert result["columns"][1]["suggested_method"] == "mask"
+    assert result["columns"][1]["reason"]
+    assert result["columns"][1]["hint"]
     birth_date_column = next(column for column in result["columns"] if column["name"] == "birth_date")
     assert "mask" in birth_date_column["unsupported_methods"]
     assert "pseudonymize" in birth_date_column["unsupported_methods"]
+    assert birth_date_column["suggested_method"] == "generalize_year"
 
 
 def test_prepare_anonymize_upload_auto_detects_semicolon_delimiter() -> None:
