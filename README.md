@@ -50,6 +50,29 @@ NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8000/api/v1 npm run dev
 - frontend: `http://127.0.0.1:3000`
 - backend: `http://127.0.0.1:8000`
 
+## Структура проекта
+
+```text
+.
+├── dockerfiles/          # Dockerfile'ы backend и frontend
+├── docs/                 # материалы спринтов, отчеты, UAT и проектная документация
+├── frontend/             # Next.js frontend
+│   ├── src/app/          # страницы приложения
+│   ├── src/components/   # UI-компоненты Generate, Anonymize, Similar и общие блоки
+│   ├── src/hooks/        # frontend hooks
+│   └── src/lib/          # API-клиент, типы ответов и download helpers
+├── scripts/              # вспомогательные скрипты для локальных проверок
+├── src/sda/              # backend Python-пакет
+│   ├── core/             # доменная логика: генерация, анонимизация, Similar/SDV
+│   ├── io/               # чтение и запись CSV
+│   ├── resources/        # JSON-шаблоны генерации
+│   ├── use_cases/        # application use cases для API
+│   └── web/              # FastAPI app, routers, schemas и stores
+├── tests/                # backend unit/integration tests
+├── compose.yaml          # Docker Compose запуск всего приложения
+└── requirements.txt      # backend Python dependencies
+```
+
 ## API
 
 - `GET /api/v1/health`
