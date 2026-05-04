@@ -46,8 +46,15 @@ const copy = {
     tables: "таблиц",
     relationships: "связей",
     result: "Результат",
-    targetRows: "Размер результата",
-    scale: "Масштаб результата",
+    totalRows: "Всего строк",
+    totalColumns: "Всего колонок",
+    sourceTables: "Таблицы",
+    detectedTypes: "Типы колонок",
+    primaryKey: "Первичный ключ",
+    noRelationships: "Связи не найдены",
+    targetRows: "Строк в результате",
+    scale: "Размер датасета",
+    scaleHint: "1 — примерно как исходные CSV, 2 — примерно в два раза больше.",
     unique: "уникальных",
     analysisFailed: "Не удалось выполнить анализ.",
     synthesisFailed: "Не удалось сгенерировать результат.",
@@ -78,8 +85,15 @@ const copy = {
     tables: "tables",
     relationships: "relationships",
     result: "Result",
-    targetRows: "Result size",
-    scale: "Result scale",
+    totalRows: "Total rows",
+    totalColumns: "Total columns",
+    sourceTables: "Tables",
+    detectedTypes: "Column types",
+    primaryKey: "Primary key",
+    noRelationships: "No relationships detected",
+    targetRows: "Rows in result",
+    scale: "Dataset size",
+    scaleHint: "1 keeps roughly the original size, 2 makes it about twice as large.",
     unique: "unique",
     analysisFailed: "Analysis failed.",
     synthesisFailed: "Synthesis failed.",
@@ -112,6 +126,27 @@ function localizeSummaryItem(item: string, language: "ru" | "en") {
   return item;
 }
 
+function extractPrimaryKey(summary: string[], language: "ru" | "en") {
+  const source = summary
+    .map((item) => localizeSummaryItem(item, language))
+    .find((item) => item.startsWith(language === "ru" ? "Первичный ключ SDV:" : "Primary key:"));
+  return source?.split(":").slice(1).join(":").trim() ?? null;
+}
+
+function extractTypeSummaries(summary: string[], language: "ru" | "en") {
+  return summary
+    .map((item) => localizeSummaryItem(item, language))
+    .filter((item) => {
+      const lower = item.toLowerCase();
+      return (
+        item.includes(":") &&
+        !lower.startsWith(language === "ru" ? "найдено колонок:" : "detected columns:") &&
+        !lower.startsWith(language === "ru" ? "строк во входном csv:" : "rows in input csv:") &&
+        !lower.startsWith(language === "ru" ? "первичный ключ sdv:" : "primary key:")
+      );
+    });
+}
+
 export function SimilarFlow() {
   const { language } = useLanguage();
   const t = copy[language];
@@ -137,15 +172,18 @@ export function SimilarFlow() {
     if (!analysis) {
       return [];
     }
-    return analysis.summary.map((item) => localizeSummaryItem(item, language));
+    return extractTypeSummaries(analysis.summary, language);
   }, [analysis, language]);
 
-  const multiSummaryItems = useMemo(() => {
-    if (!multiAnalysis) {
-      return [];
-    }
-    return multiAnalysis.summary.map((item) => localizeSummaryItem(item, language));
-  }, [multiAnalysis, language]);
+  const primaryKey = useMemo(() => (analysis ? extractPrimaryKey(analysis.summary, language) : null), [analysis, language]);
+  const multiTotalRows = useMemo(
+    () => multiAnalysis?.tables.reduce((sum, table) => sum + table.row_count, 0) ?? 0,
+    [multiAnalysis],
+  );
+  const multiTotalColumns = useMemo(
+    () => multiAnalysis?.tables.reduce((sum, table) => sum + table.column_count, 0) ?? 0,
+    [multiAnalysis],
+  );
 
   const handleAnalyze = async (file: File | null) => {
     if (!file) {
@@ -357,7 +395,45 @@ export function SimilarFlow() {
 
           {analysis ? (
             <>
-              <div className={`preview-panel${isPreviewOpen ? " is-open" : ""}`}>
+              <div className="dataset-overview">
+                <div className="dataset-stats-grid">
+                  <div className="dataset-stat">
+                    <span>{t.totalRows}</span>
+                    <strong>{analysis.row_count}</strong>
+                  </div>
+                  <div className="dataset-stat">
+                    <span>{t.totalColumns}</span>
+                    <strong>{analysis.column_count}</strong>
+                  </div>
+                  <div className="dataset-stat">
+                    <span>{t.relationships}</span>
+                    <strong>0</strong>
+                  </div>
+                </div>
+
+                {primaryKey || summaryItems.length > 0 ? (
+                  <div className="dataset-detail-grid">
+                    {primaryKey ? (
+                      <div className="dataset-detail">
+                        <span>{t.primaryKey}</span>
+                        <strong>{primaryKey}</strong>
+                      </div>
+                    ) : null}
+                    {summaryItems.length > 0 ? (
+                      <div className="dataset-detail">
+                        <span>{t.detectedTypes}</span>
+                        <div className="dataset-chip-row">
+                          {summaryItems.map((item) => (
+                            <em key={item}>{item}</em>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className={`preview-panel preview-panel--clean${isPreviewOpen ? " is-open" : ""}`}>
                 <button
                   type="button"
                   className="preview-panel__toggle"
@@ -390,14 +466,6 @@ export function SimilarFlow() {
                 </div>
               </div>
 
-              <div className="summary-list summary-list--stack">
-                {summaryItems.map((item) => (
-                  <div key={item} className="summary-list__item">
-                    {item}
-                  </div>
-                ))}
-              </div>
-
               <label className="input-block input-block--inline input-block--wide">
                 <span className="field-label">{t.targetRows}</span>
                 <input
@@ -418,7 +486,7 @@ export function SimilarFlow() {
             </>
           ) : null}
           {result ? (
-            <article className="sidebar-card sidebar-card--result">
+            <article className="sidebar-card sidebar-card--result similar-result-card">
               <span className="field-label">{t.result}</span>
               <strong className="sidebar-card__big">{result.file_name}</strong>
               <div className="sidebar-list">
@@ -490,19 +558,55 @@ export function SimilarFlow() {
 
           {multiAnalysis ? (
             <>
-              <div className="summary-list summary-list--stack">
-                {multiSummaryItems.map((item) => (
-                  <div key={item} className="summary-list__item">
-                    {item}
+              <div className="dataset-overview">
+                <div className="dataset-stats-grid">
+                  <div className="dataset-stat">
+                    <span>{t.totalRows}</span>
+                    <strong>{multiTotalRows}</strong>
                   </div>
-                ))}
+                  <div className="dataset-stat">
+                    <span>{t.totalColumns}</span>
+                    <strong>{multiTotalColumns}</strong>
+                  </div>
+                  <div className="dataset-stat">
+                    <span>{t.relationships}</span>
+                    <strong>{multiAnalysis.relationships.length}</strong>
+                  </div>
+                </div>
+
+                <div className="dataset-detail-grid">
+                  <div className="dataset-detail">
+                    <span>{t.sourceTables}</span>
+                    <div className="dataset-table-list">
+                      {multiAnalysis.tables.map((table) => (
+                        <em key={table.table_name}>
+                          {table.table_name}: {table.row_count} {t.rows}, {table.column_count} {t.columns}
+                        </em>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="dataset-detail">
+                    <span>{t.relationships}</span>
+                    {multiAnalysis.relationships.length > 0 ? (
+                      <div className="dataset-table-list">
+                        {multiAnalysis.relationships.map((relationship) => (
+                          <em key={`${relationship.parent_table_name}-${relationship.child_table_name}-${relationship.child_foreign_key}`}>
+                            {relationship.parent_table_name}.{relationship.parent_primary_key} → {relationship.child_table_name}.{relationship.child_foreign_key}
+                          </em>
+                        ))}
+                      </div>
+                    ) : (
+                      <strong>{t.noRelationships}</strong>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="multi-table-list">
                 {multiAnalysis.tables.map((table) => {
                   const isOpen = openTableName === table.table_name;
                   return (
-                    <div key={table.table_name} className={`preview-panel${isOpen ? " is-open" : ""}`}>
+                    <div key={table.table_name} className={`preview-panel preview-panel--clean${isOpen ? " is-open" : ""}`}>
                       <button
                         type="button"
                         className="preview-panel__toggle"
@@ -538,19 +642,6 @@ export function SimilarFlow() {
                 })}
               </div>
 
-              {multiAnalysis.relationships.length > 0 ? (
-                <div className="relationship-list">
-                  {multiAnalysis.relationships.map((relationship) => (
-                    <div
-                      key={`${relationship.parent_table_name}-${relationship.child_table_name}-${relationship.child_foreign_key}`}
-                      className="summary-list__item"
-                    >
-                      {relationship.parent_table_name}.{relationship.parent_primary_key} → {relationship.child_table_name}.{relationship.child_foreign_key}
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-
               <label className="input-block input-block--inline input-block--wide">
                 <span className="field-label">{t.scale}</span>
                 <input
@@ -564,6 +655,7 @@ export function SimilarFlow() {
                     setScale(Math.min(5, Math.max(0.1, Number(event.target.value) || 1)));
                   }}
                 />
+                <small className="input-block__hint">{t.scaleHint}</small>
               </label>
 
               <button type="button" className="button button--primary tool-submit" onClick={handleMultiRun} disabled={isMultiRunning}>
@@ -573,7 +665,7 @@ export function SimilarFlow() {
           ) : null}
 
           {multiResult ? (
-            <article className="sidebar-card sidebar-card--result">
+            <article className="sidebar-card sidebar-card--result similar-result-card">
               <span className="field-label">{t.result}</span>
               <strong className="sidebar-card__big">{multiResult.file_name}</strong>
               <div className="sidebar-list">

@@ -91,12 +91,12 @@ const domainCopy: Record<GenerateDomainId, Record<"ru" | "en", { name: string; d
   },
   shops: {
     ru: {
-      name: "Магазины",
-      description: "Торговые точки, кассы, витрины и розничное оборудование.",
+      name: "Продуктовые магазины",
+      description: "Продукты, напитки и товары повседневного спроса для розницы.",
     },
     en: {
-      name: "Shops",
-      description: "Retail locations, checkout areas, displays, and store equipment.",
+      name: "Grocery stores",
+      description: "Food, drinks, and everyday retail goods.",
     },
   },
   logistics: {
@@ -192,7 +192,7 @@ export function GenerateFlow() {
   const [templates, setTemplates] = useState<GenerateTemplateSummary[]>([]);
   const [domains, setDomains] = useState<GenerateDomainSummary[]>([]);
   const [details, setDetails] = useState<Record<string, GenerateTemplateDetail>>({});
-  const [selection, setSelection] = useState<SelectionState>({ products: 250 });
+  const [selection, setSelection] = useState<SelectionState>({});
   const [locale, setLocale] = useState<"ru_RU" | "en_US">(language === "en" ? "en_US" : "ru_RU");
   const [domain, setDomain] = useState<GenerateDomainId>("ecommerce");
   const [isLoading, setIsLoading] = useState(true);
