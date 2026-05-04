@@ -44,7 +44,7 @@ const copy = {
     rows: "строк",
     columns: "колонок",
     tables: "таблиц",
-    relationships: "связи",
+    relationships: "Связи",
     result: "Результат",
     totalRows: "Всего строк",
     totalColumns: "Всего колонок",
