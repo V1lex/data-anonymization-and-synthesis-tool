@@ -43,6 +43,21 @@ def test_get_generate_templates_returns_catalog() -> None:
     ]
 
 
+def test_get_generate_domains_returns_sprint_four_categories() -> None:
+    response = client.get("/api/v1/generate/domains")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert [item["domain_id"] for item in payload["items"]] == [
+        "ecommerce",
+        "fintech",
+        "shops",
+        "logistics",
+        "education",
+        "crm",
+    ]
+
+
 def test_post_generate_run_returns_csv_base64_for_single_template() -> None:
     response = client.post(
         "/api/v1/generate/run",
@@ -62,10 +77,87 @@ def test_post_generate_run_returns_csv_base64_for_single_template() -> None:
     assert [row["user_id"] for row in rows] == ["1", "2"]
 
 
+def test_post_generate_run_applies_selected_domain_to_products() -> None:
+    response = client.post(
+        "/api/v1/generate/run",
+        json={
+            "items": [{"template_id": "products", "row_count": 3}],
+            "locale": "en_US",
+            "domain": "logistics",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    decoded = base64.b64decode(payload["content_base64"]).decode("utf-8")
+    rows = list(csv.DictReader(io.StringIO(decoded)))
+    logistics_names = {
+        "Warehouse delivery",
+        "Express shipment",
+        "Pallet slot",
+        "Cold-chain transport",
+        "Courier route",
+        "Cargo insurance",
+    }
+
+    assert {row["name"].rsplit(" ", 1)[0] for row in rows}.issubset(logistics_names)
+
+
+def test_post_generate_run_applies_education_domain_to_products() -> None:
+    response = client.post(
+        "/api/v1/generate/run",
+        json={
+            "items": [{"template_id": "products", "row_count": 4}],
+            "locale": "ru_RU",
+            "domain": "education",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    decoded = base64.b64decode(payload["content_base64"]).decode("utf-8")
+    rows = list(csv.DictReader(io.StringIO(decoded)))
+
+    education_markers = ("курс", "интенсив", "модуль", "сессия", "тренажёр")
+    assert all(
+        any(marker in row["name"].lower() for marker in education_markers)
+        for row in rows
+    )
+
+
+def test_post_generate_run_builds_plausible_ru_addresses() -> None:
+    response = client.post(
+        "/api/v1/generate/run",
+        json={"items": [{"template_id": "users", "row_count": 10}], "locale": "ru_RU"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    decoded = base64.b64decode(payload["content_base64"]).decode("utf-8")
+    rows = list(csv.DictReader(io.StringIO(decoded)))
+
+    assert all(", д. " in row["address"] for row in rows)
+    assert all("влад." not in row["address"] for row in rows)
+
+
 def test_post_generate_run_rejects_unsupported_locale() -> None:
     response = client.post(
         "/api/v1/generate/run",
         json={"items": [{"template_id": "users", "row_count": 2}], "locale": "de_DE"},
+    )
+
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["error_code"] == "validation_error"
+
+
+def test_post_generate_run_rejects_unsupported_domain() -> None:
+    response = client.post(
+        "/api/v1/generate/run",
+        json={
+            "items": [{"template_id": "products", "row_count": 2}],
+            "domain": "medicine",
+        },
     )
 
     assert response.status_code == 422

@@ -150,6 +150,41 @@ STREET_TYPES = {
     "ru_RU": ["ул.", "пр-т", "пер.", "бул.", "наб.", "ш."],
     "en_US": ["St", "Ave", "Blvd", "Rd", "Ln", "Dr"],
 }
+RU_STREET_LINES = [
+    "ул. Лесная",
+    "ул. Садовая",
+    "ул. Молодёжная",
+    "ул. Центральная",
+    "ул. Парковая",
+    "ул. Набережная",
+    "ул. Школьная",
+    "ул. Солнечная",
+    "ул. Полевая",
+    "ул. Советская",
+    "ул. Озёрная",
+    "ул. Вокзальная",
+    "ул. Спортивная",
+    "ул. Берёзовая",
+    "ул. Тихая",
+    "ул. Юбилейная",
+    "ул. Гагарина",
+    "ул. Победы",
+    "ул. Мира",
+    "ул. Строителей",
+    "ул. Космонавтов",
+    "пр-т Мира",
+    "пр-т Ленина",
+    "пр-т Победы",
+    "пр-т Гагарина",
+    "бул. Дмитрия Донского",
+    "бул. Цветной",
+    "наб. Пресненская",
+    "наб. Реки Фонтанки",
+    "пер. Садовый",
+    "пер. Тихий",
+    "ш. Варшавское",
+    "ш. Ленинградское",
+]
 CITY_DISTRICTS = {
     "ru_RU": [
         "Центральный",
@@ -180,14 +215,126 @@ CITY_DISTRICTS = {
         "Lakeside",
     ],
 }
+VALID_GENERATION_DOMAINS = {
+    "ecommerce",
+    "fintech",
+    "shops",
+    "logistics",
+    "education",
+    "crm",
+}
+PRODUCT_NAME_POOLS = {
+    "ru_RU": {
+        "ecommerce": [
+            "Смартфон",
+            "Ноутбук",
+            "Беспроводные наушники",
+            "Умная колонка",
+            "Кофемашина",
+            "Фитнес-браслет",
+        ],
+        "fintech": [
+            "Расчётный счёт для бизнеса",
+            "Премиальная дебетовая карта",
+            "Инвестиционный портфель",
+            "Сервис скоринга клиентов",
+            "Пакет валютного контроля",
+            "Подписка на финансовую аналитику",
+        ],
+        "shops": [
+            "Молоко пастеризованное",
+            "Хлеб пшеничный",
+            "Яблоки сезонные",
+            "Сыр полутвёрдый",
+            "Крупа гречневая",
+            "Йогурт натуральный",
+        ],
+        "logistics": [
+            "Доставка до склада",
+            "Экспресс-перевозка",
+            "Паллетное место",
+            "Холодовая перевозка",
+            "Курьерский маршрут",
+            "Страхование груза",
+        ],
+        "education": [
+            "Курс по Python",
+            "Курс по анализу данных",
+            "Интенсив по веб-разработке",
+            "Модуль по машинному обучению",
+            "Менторская сессия",
+            "Доступ к учебному тренажёру",
+        ],
+        "crm": [
+            "Лицензия CRM",
+            "Пакет лидов",
+            "Интеграция телефонии",
+            "Модуль рассылок",
+            "Воронка продаж",
+            "Настройка отчётов",
+        ],
+    },
+    "en_US": {
+        "ecommerce": [
+            "Smartphone",
+            "Laptop",
+            "Wireless headphones",
+            "Smart speaker",
+            "Coffee machine",
+            "Fitness tracker",
+        ],
+        "fintech": [
+            "Business checking account",
+            "Premium debit card",
+            "Investment portfolio",
+            "Customer scoring service",
+            "Currency control package",
+            "Financial analytics subscription",
+        ],
+        "shops": [
+            "Whole milk",
+            "Wheat bread",
+            "Seasonal apples",
+            "Semi-hard cheese",
+            "Buckwheat groats",
+            "Plain yogurt",
+        ],
+        "logistics": [
+            "Warehouse delivery",
+            "Express shipment",
+            "Pallet slot",
+            "Cold-chain transport",
+            "Courier route",
+            "Cargo insurance",
+        ],
+        "education": [
+            "Online course",
+            "Practical intensive",
+            "Learning module",
+            "Mentor session",
+            "Certificate",
+            "Training simulator access",
+        ],
+        "crm": [
+            "CRM license",
+            "Lead package",
+            "Telephony integration",
+            "Email campaign module",
+            "Sales pipeline",
+            "Report setup",
+        ],
+    },
+}
 
 
 def apply_generation_semantics(
     tables: dict[str, list[dict[str, object]]],
     *,
     locale: str,
+    domain: str = "ecommerce",
 ) -> dict[str, list[dict[str, object]]]:
-    seeded_random = Random(f"generation::{locale}::{sum(len(rows) for rows in tables.values())}")
+    normalized_domain = domain if domain in VALID_GENERATION_DOMAINS else "ecommerce"
+    seeded_random = Random(f"generation::{locale}::{normalized_domain}::{sum(len(rows) for rows in tables.values())}")
 
     users = tables.get("users", [])
     products = tables.get("products", [])
@@ -196,7 +343,7 @@ def apply_generation_semantics(
     support_tickets = tables.get("support_tickets", [])
 
     _adjust_users(users, locale=locale, seeded_random=seeded_random)
-    _adjust_products(products, locale=locale, seeded_random=seeded_random)
+    _adjust_products(products, locale=locale, domain=normalized_domain, seeded_random=seeded_random)
     _adjust_orders(orders, users=users, locale=locale, seeded_random=seeded_random)
     _adjust_payments(payments, seeded_random=seeded_random)
     _adjust_support_tickets(
@@ -225,11 +372,17 @@ def _adjust_users(users: list[dict[str, object]], *, locale: str, seeded_random:
             row["address"] = _build_address_for_city(str(row["city"]), locale=locale, seeded_random=seeded_random)
 
 
-def _adjust_products(products: list[dict[str, object]], *, locale: str, seeded_random: Random) -> None:
+def _adjust_products(products: list[dict[str, object]], *, locale: str, domain: str, seeded_random: Random) -> None:
     if not products or not _has_columns(products, {"product_id", "price"}):
         return
 
+    product_names = PRODUCT_NAME_POOLS.get(locale, PRODUCT_NAME_POOLS["en_US"]).get(
+        domain,
+        PRODUCT_NAME_POOLS["en_US"]["ecommerce"],
+    )
     for row in products:
+        if "name" in row:
+            row["name"] = _sample_product_name(product_names, seeded_random=seeded_random)
         row["price"] = _sample_product_price(seeded_random, locale=locale)
 
 
@@ -386,25 +539,33 @@ def _sample_product_price(seeded_random: Random, *, locale: str) -> int:
     return seeded_random.randint(min_value, max_value)
 
 
+def _sample_product_name(product_names: list[str], *, seeded_random: Random) -> str:
+    base_name = seeded_random.choice(product_names)
+    suffix = seeded_random.randint(100, 999)
+    return f"{base_name} {suffix}"
+
+
 def _build_address_for_city(city: str, *, locale: str, seeded_random: Random) -> str:
-    streets = CITY_STREETS.get(locale, CITY_STREETS["en_US"])
-    street_types = STREET_TYPES.get(locale, STREET_TYPES["en_US"])
     districts = CITY_DISTRICTS.get(locale, CITY_DISTRICTS["en_US"])
-    street_name = seeded_random.choice(streets)
-    street_type = seeded_random.choice(street_types)
-    house = seeded_random.randint(1, 220)
 
     if locale == "ru_RU":
+        street_line = seeded_random.choice(RU_STREET_LINES)
         district = seeded_random.choice(districts)
-        building = f", корп. {seeded_random.randint(1, 8)}" if seeded_random.random() < 0.18 else ""
-        apartment = f", кв. {seeded_random.randint(1, 400)}" if seeded_random.random() < 0.72 else ""
+        house = _sample_ru_house_number(seeded_random)
+        building = f", корп. {seeded_random.randint(1, 5)}" if seeded_random.random() < 0.16 else ""
+        structure = f", стр. {seeded_random.randint(1, 4)}" if seeded_random.random() < 0.08 else ""
+        apartment = f", кв. {seeded_random.randint(1, 280)}" if seeded_random.random() < 0.68 else ""
         patterns = [
-            f"{street_type} {street_name}, д. {house}{building}{apartment}",
-            f"{district} район, {street_type} {street_name}, д. {house}{building}{apartment}",
-            f"{street_type} {street_name}, влад. {house}{building}{apartment}",
+            f"{street_line}, д. {house}{building}{structure}{apartment}",
+            f"{district} район, {street_line}, д. {house}{building}{structure}{apartment}",
         ]
         return seeded_random.choice(patterns)
 
+    streets = CITY_STREETS.get(locale, CITY_STREETS["en_US"])
+    street_types = STREET_TYPES.get(locale, STREET_TYPES["en_US"])
+    street_name = seeded_random.choice(streets)
+    street_type = seeded_random.choice(street_types)
+    house = seeded_random.randint(1, 220)
     district = seeded_random.choice(districts)
     suite = f", Apt {seeded_random.randint(1, 999)}" if seeded_random.random() < 0.55 else ""
     patterns = [
@@ -413,6 +574,15 @@ def _build_address_for_city(city: str, *, locale: str, seeded_random: Random) ->
         f"{house} {street_name} {street_type}, Unit {seeded_random.randint(1, 80)}",
     ]
     return seeded_random.choice(patterns)
+
+
+def _sample_ru_house_number(seeded_random: Random) -> str:
+    number = seeded_random.randint(1, 180)
+    if seeded_random.random() < 0.14:
+        return f"{number}{seeded_random.choice(['А', 'Б', 'В'])}"
+    if seeded_random.random() < 0.08:
+        return f"{number}/{seeded_random.randint(1, 3)}"
+    return str(number)
 
 
 def _weighted_choice(seeded_random: Random, weighted_items: list[tuple[Any, float]]) -> Any:

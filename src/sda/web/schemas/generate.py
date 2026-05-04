@@ -3,6 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from sda.core.generation.validators import VALID_GENERATION_DOMAINS
 from sda.core.generation.generator import DEFAULT_FAKER_LOCALE
 
 MAX_ROWS_PER_FILE = 10_000
@@ -34,6 +35,23 @@ class ResultFormat(str, Enum):
 class FakerLocale(str, Enum):
     RU_RU = "ru_RU"
     EN_US = "en_US"
+
+
+class GenerateDomainId(str, Enum):
+    ECOMMERCE = "ecommerce"
+    FINTECH = "fintech"
+    SHOPS = "shops"
+    LOGISTICS = "logistics"
+    EDUCATION = "education"
+    CRM = "crm"
+
+
+class GenerateDomainSummary(BaseModel):
+    model_config = ConfigDict(use_enum_values=True, extra="forbid")
+
+    domain_id: GenerateDomainId
+    name: str = Field(..., min_length=1, max_length=128)
+    description: str = Field(..., min_length=1, max_length=512)
 
 
 class ErrorResponse(BaseModel):
@@ -106,12 +124,15 @@ class GenerateRunRequest(BaseModel):
 
     items: list[GenerateRunItem] = Field(..., min_length=1, max_length=len(VALID_TEMPLATE_IDS))
     locale: FakerLocale = Field(default=DEFAULT_FAKER_LOCALE)
+    domain: GenerateDomainId = Field(default=GenerateDomainId.ECOMMERCE)
 
     @model_validator(mode="after")
     def validate_items(self) -> "GenerateRunRequest":
         template_ids = [item.template_id for item in self.items]
         if len(set(template_ids)) != len(template_ids):
             raise ValueError("each template_id can be requested only once")
+        if self.domain not in VALID_GENERATION_DOMAINS:
+            raise ValueError("domain is not supported")
         return self
 
 
@@ -157,6 +178,8 @@ class GenerateRunResponse(BaseModel):
 __all__ = [
     "ErrorResponse",
     "FakerLocale",
+    "GenerateDomainId",
+    "GenerateDomainSummary",
     "GeneratedFile",
     "GenerateRunItem",
     "GenerateRunRequest",

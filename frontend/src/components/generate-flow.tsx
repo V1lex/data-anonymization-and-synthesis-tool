@@ -7,11 +7,14 @@ import { FullscreenLoaderOverlay } from "@/components/fullscreen-loader-overlay"
 import { useLanguage } from "@/components/language-provider";
 import {
   ApiError,
+  fetchGenerateDomains,
   fetchGenerateTemplateDetail,
   fetchGenerateTemplates,
   runGenerate,
 } from "@/lib/api";
 import type {
+  GenerateDomainId,
+  GenerateDomainSummary,
   GenerateRunResponse,
   GenerateTemplateDetail,
   GenerateTemplateSummary,
@@ -27,6 +30,7 @@ const copy = {
     locale: "Язык / регион датасета",
     localeRu: "Русский",
     localeEn: "English",
+    domain: "Сценарий применения",
     loadError: "Не удалось загрузить шаблоны.",
     generate: "Сгенерировать",
     generating: "Генерация...",
@@ -48,6 +52,7 @@ const copy = {
     locale: "Dataset language / region",
     localeRu: "Russian",
     localeEn: "English",
+    domain: "Use case",
     loadError: "Failed to load templates.",
     generate: "Generate",
     generating: "Generating...",
@@ -62,6 +67,69 @@ const copy = {
     loadingTemplates: "Loading templates...",
   },
 } as const;
+
+const domainCopy: Record<GenerateDomainId, Record<"ru" | "en", { name: string; description: string }>> = {
+  ecommerce: {
+    ru: {
+      name: "Электронная коммерция",
+      description: "Каталоги товаров, заказы и платежи для интернет-магазинов.",
+    },
+    en: {
+      name: "E-commerce",
+      description: "Product catalogs, orders, and payments for online stores.",
+    },
+  },
+  fintech: {
+    ru: {
+      name: "Финтех",
+      description: "Финансовые продукты, операции и клиентские сценарии.",
+    },
+    en: {
+      name: "Fintech",
+      description: "Financial products, operations, and customer scenarios.",
+    },
+  },
+  shops: {
+    ru: {
+      name: "Продуктовые магазины",
+      description: "Продукты, напитки и товары повседневного спроса для розницы.",
+    },
+    en: {
+      name: "Grocery stores",
+      description: "Food, drinks, and everyday retail goods.",
+    },
+  },
+  logistics: {
+    ru: {
+      name: "Логистика",
+      description: "Доставки, маршруты, склады и грузовые услуги.",
+    },
+    en: {
+      name: "Logistics",
+      description: "Deliveries, routes, warehouses, and cargo services.",
+    },
+  },
+  education: {
+    ru: {
+      name: "Образование",
+      description: "Курсы, учебные модули и активности студентов.",
+    },
+    en: {
+      name: "Education",
+      description: "Courses, learning modules, and student activities.",
+    },
+  },
+  crm: {
+    ru: {
+      name: "CRM",
+      description: "Продажи, лиды, лицензии и клиентские коммуникации.",
+    },
+    en: {
+      name: "CRM",
+      description: "Sales, leads, licenses, and customer communication.",
+    },
+  },
+};
 
 const templateCopy = {
   users: {
@@ -122,9 +190,11 @@ export function GenerateFlow() {
   const { language } = useLanguage();
   const t = copy[language];
   const [templates, setTemplates] = useState<GenerateTemplateSummary[]>([]);
+  const [domains, setDomains] = useState<GenerateDomainSummary[]>([]);
   const [details, setDetails] = useState<Record<string, GenerateTemplateDetail>>({});
   const [selection, setSelection] = useState<SelectionState>({});
   const [locale, setLocale] = useState<"ru_RU" | "en_US">(language === "en" ? "en_US" : "ru_RU");
+  const [domain, setDomain] = useState<GenerateDomainId>("ecommerce");
   const [isLoading, setIsLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -134,8 +204,12 @@ export function GenerateFlow() {
   useEffect(() => {
     void (async () => {
       try {
-        const response = await fetchGenerateTemplates();
-        setTemplates(response.items);
+        const [templatesResponse, domainsResponse] = await Promise.all([
+          fetchGenerateTemplates(),
+          fetchGenerateDomains(),
+        ]);
+        setTemplates(templatesResponse.items);
+        setDomains(domainsResponse.items);
       } catch (caught) {
         setError(caught instanceof ApiError ? caught.message : t.loadError);
       } finally {
@@ -154,6 +228,12 @@ export function GenerateFlow() {
 
   const getTemplateDescription = (templateId: GenerateTemplateSummary["template_id"], fallback?: string | null) =>
     templateCopy[templateId][language].description ?? fallback ?? "";
+
+  const getDomainName = (domainId: GenerateDomainId, fallback?: string | null) =>
+    domainCopy[domainId][language].name ?? fallback ?? domainId;
+
+  const getDomainDescription = (domainId: GenerateDomainId, fallback?: string | null) =>
+    domainCopy[domainId][language].description ?? fallback ?? "";
 
   const toggleTemplate = async (template: GenerateTemplateSummary) => {
     setError(null);
@@ -214,6 +294,7 @@ export function GenerateFlow() {
           row_count: selection[item.template_id],
         })),
         locale,
+        domain,
       });
       setResult(response);
     } catch (caught) {
@@ -272,6 +353,29 @@ export function GenerateFlow() {
                 >
                   {t.localeEn}
                 </button>
+              </div>
+            </div>
+            <div className="tool-toolbar__group tool-toolbar__group--left">
+              <span className="field-label">{t.domain}</span>
+              <div className="domain-grid">
+                {domains.map((item) => {
+                  const active = domain === item.domain_id;
+
+                  return (
+                    <button
+                      key={item.domain_id}
+                      type="button"
+                      className={`domain-option${active ? " is-active" : ""}`}
+                      onClick={() => {
+                        setDomain(item.domain_id);
+                        setResult(null);
+                      }}
+                    >
+                      <strong>{getDomainName(item.domain_id, item.name)}</strong>
+                      <span>{getDomainDescription(item.domain_id, item.description)}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>

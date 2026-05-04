@@ -81,6 +81,7 @@ def generate_csv_use_case(
     *,
     delimiter: str = ",",
     locale: str = DEFAULT_FAKER_LOCALE,
+    domain: str = "ecommerce",
     generator: DataGenerator | None = None,
 ) -> dict[str, Any]:
     """Use case генерации CSV на уровне приложения.
@@ -111,7 +112,7 @@ def generate_csv_use_case(
     if callable(set_locale):
         set_locale(locale)
     tables = data_generator.generate_tables(ordered_items)
-    tables = apply_generation_semantics(tables, locale=locale)
+    tables = apply_generation_semantics(tables, locale=locale, domain=domain)
 
     generated_files: list[dict[str, Any]] = []
     total_rows = 0

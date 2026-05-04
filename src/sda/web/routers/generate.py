@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from sda.use_cases.generate_csv import generate_csv_use_case
 from sda.web.deps import TEMPLATE_DESCRIPTIONS, describe_column, load_template_catalog, load_template_payload
 from sda.web.schemas.generate import (
+    GenerateDomainSummary,
     GenerateRunRequest,
     GenerateRunResponse,
     GeneratedFile,
@@ -15,6 +16,39 @@ from sda.web.schemas.generate import (
 )
 
 router = APIRouter(prefix="/generate", tags=["generate"])
+
+GENERATE_DOMAINS = [
+    {
+        "domain_id": "ecommerce",
+        "name": "Электронная коммерция",
+        "description": "Каталоги товаров, заказы и платежи для интернет-магазинов.",
+    },
+    {
+        "domain_id": "fintech",
+        "name": "Финтех",
+        "description": "Финансовые продукты, операции и клиентские сценарии.",
+    },
+    {
+        "domain_id": "shops",
+        "name": "Продуктовые магазины",
+        "description": "Продукты, напитки и товары повседневного спроса для розницы.",
+    },
+    {
+        "domain_id": "logistics",
+        "name": "Логистика",
+        "description": "Доставки, маршруты, склады и грузовые услуги.",
+    },
+    {
+        "domain_id": "education",
+        "name": "Образование",
+        "description": "Курсы, учебные модули и активности студентов.",
+    },
+    {
+        "domain_id": "crm",
+        "name": "CRM",
+        "description": "Продажи, лиды, лицензии и клиентские коммуникации.",
+    },
+]
 
 
 def _build_generated_file(item: dict) -> GeneratedFile:
@@ -38,6 +72,20 @@ def get_templates() -> dict[str, list[dict]]:
         for item in load_template_catalog()
     ]
     return {"items": items}
+
+
+@router.get("/domains")
+def get_generate_domains() -> dict[str, list[dict]]:
+    return {
+        "items": [
+            GenerateDomainSummary(
+                domain_id=item["domain_id"],
+                name=item["name"],
+                description=item["description"],
+            ).model_dump()
+            for item in GENERATE_DOMAINS
+        ]
+    }
 
 
 @router.get("/templates/{template_id}")
@@ -67,6 +115,7 @@ def run_generate(request: GenerateRunRequest) -> dict:
     result = generate_csv_use_case(
         [item.model_dump() for item in request.items],
         locale=request.locale,
+        domain=request.domain,
     )
     generated_files = [_build_generated_file(item).model_dump() for item in result["generated_files"]]
 

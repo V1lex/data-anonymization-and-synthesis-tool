@@ -71,9 +71,10 @@ const content = {
         description: "Получаете CSV или ZIP, готовый для демо, разработки, тестов и учебных ML-проектов.",
       },
     ],
-    datasetsTitle: "Создавайте любой датасет под свои нужды",
-    datasetsDescription: "",
-    datasets: ["Электронная коммерция", "Финтех", "Поддержка", "Логистика", "Образование", "CRM"],
+    datasetsTitle: "Для чего можно применять",
+    datasetsDescription:
+      "Выберите сценарий в Generate, и товары/услуги в синтетическом каталоге будут соответствовать выбранной предметной области.",
+    datasets: ["Электронная коммерция", "Финтех", "Продуктовые магазины", "Логистика", "Образование", "CRM"],
   },
   en: {
     heroEyebrow: "Data workflows for you",
@@ -123,10 +124,10 @@ const content = {
         description: "Get a CSV or ZIP ready for demos, development, testing, and academic ML projects.",
       },
     ],
-    datasetsTitle: "Make any dataset you need",
+    datasetsTitle: "Where you can apply it",
     datasetsDescription:
-      "Product catalogs, order histories, support operations, CRM exports, payment streams, and arbitrary single-table CSVs for experiments and demos.",
-    datasets: ["E-commerce", "Fintech", "Support", "Logistics", "EdTech", "CRM"],
+      "Choose a Generate use case, and product or service names in the synthetic catalog will match that domain.",
+    datasets: ["E-commerce", "Fintech", "Grocery stores", "Logistics", "EdTech", "CRM"],
   },
 } as const;
 

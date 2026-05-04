@@ -1,11 +1,13 @@
 import re
 import warnings
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
 from sdv.metadata import Metadata
+from sdv.multi_table import HMASynthesizer
 from sdv.single_table import GaussianCopulaSynthesizer
 
 SDV_TABLE_NAME = "source_table"
@@ -74,6 +76,66 @@ class SdvSimilarService:
             "warnings": warnings_list,
         }
 
+    def analyze_multi_table(
+        self,
+        *,
+        tables: dict[str, dict[str, Any]],
+        preview_rows_limit: int,
+    ) -> dict[str, Any]:
+        dataframes: dict[str, pd.DataFrame] = {}
+        table_specs: dict[str, dict[str, ColumnSpec]] = {}
+        table_profiles: list[dict[str, Any]] = []
+
+        for table_name, table_payload in tables.items():
+            dataframe, column_specs = self._build_typed_dataframe(
+                rows=table_payload["rows"],
+                header=table_payload["header"],
+            )
+            dataframes[table_name] = dataframe
+            table_specs[table_name] = column_specs
+
+        metadata = self._build_multi_table_metadata(dataframes=dataframes, table_specs=table_specs)
+        self._align_relationship_specs(metadata=metadata, table_specs=table_specs)
+
+        for table_name, table_payload in tables.items():
+            column_profiles = self._build_column_profiles(
+                rows=table_payload["rows"],
+                header=table_payload["header"],
+                column_specs=table_specs[table_name],
+            )
+            table_profiles.append(
+                {
+                    "table_name": table_name,
+                    "file_name": table_payload["file_name"],
+                    "row_count": len(table_payload["rows"]),
+                    "column_count": len(table_payload["header"]),
+                    "columns": column_profiles,
+                    "preview_rows": table_payload["rows"][:preview_rows_limit],
+                }
+            )
+
+        metadata_payload = metadata.to_dict()
+        return {
+            "metadata": metadata_payload,
+            "table_specs": {
+                table_name: {
+                    column_name: asdict(spec)
+                    for column_name, spec in column_specs.items()
+                }
+                for table_name, column_specs in table_specs.items()
+            },
+            "tables": table_profiles,
+            "relationships": metadata_payload.get("relationships", []),
+            "summary": self._build_multi_table_summary(
+                tables=table_profiles,
+                metadata_payload=metadata_payload,
+            ),
+            "warnings": self._build_multi_table_warnings(
+                tables=table_profiles,
+                metadata_payload=metadata_payload,
+            ),
+        }
+
     def synthesize(
         self,
         *,
@@ -115,6 +177,65 @@ class SdvSimilarService:
             "warnings": warnings_list[:10],
         }
 
+    def synthesize_multi_table(
+        self,
+        *,
+        tables: dict[str, dict[str, Any]],
+        metadata_payload: dict[str, Any],
+        table_specs_payload: dict[str, dict[str, dict[str, Any]]],
+        scale: float,
+    ) -> dict[str, Any]:
+        dataframes: dict[str, pd.DataFrame] = {}
+        table_specs: dict[str, dict[str, ColumnSpec]] = {}
+        warnings_list: list[str] = []
+
+        for table_name, table_payload in tables.items():
+            dataframe, column_specs = self._build_typed_dataframe(
+                rows=table_payload["rows"],
+                header=table_payload["header"],
+                stored_specs=table_specs_payload.get(table_name),
+            )
+            dataframes[table_name] = dataframe
+            table_specs[table_name] = column_specs
+
+        metadata = Metadata.load_from_dict(metadata_payload)
+        with warnings.catch_warnings(record=True) as captured_warnings:
+            warnings.filterwarnings(
+                "ignore",
+                message="We strongly recommend saving the metadata using 'save_to_json'.*",
+            )
+            synthesizer = HMASynthesizer(metadata, verbose=False)
+            synthesizer.fit(dataframes)
+            sampled_tables = synthesizer.sample(scale=scale)
+
+        for item in captured_warnings:
+            message = str(item.message).strip()
+            if message:
+                warnings_list.append(message)
+
+        table_summaries: list[dict[str, Any]] = []
+        formatted_tables = self._format_multi_table_sampled_dataframes(
+            sampled_tables=sampled_tables,
+            source_tables=tables,
+            table_specs=table_specs,
+            relationships=metadata_payload.get("relationships", []),
+        )
+        for table_name, table_payload in tables.items():
+            table_summaries.append(
+                {
+                    "table_name": table_name,
+                    "file_name": self._build_similar_table_file_name(table_payload["file_name"]),
+                    "row_count": len(formatted_tables[table_name]),
+                    "column_count": len(table_payload["header"]),
+                }
+            )
+
+        return {
+            "tables": formatted_tables,
+            "table_summaries": table_summaries,
+            "warnings": warnings_list[:10],
+        }
+
     def _build_metadata(
         self,
         *,
@@ -140,6 +261,54 @@ class SdvSimilarService:
             metadata.remove_primary_key(table_name=SDV_TABLE_NAME)
 
         return metadata
+
+    def _build_multi_table_metadata(
+        self,
+        *,
+        dataframes: dict[str, pd.DataFrame],
+        table_specs: dict[str, dict[str, ColumnSpec]],
+    ) -> Metadata:
+        metadata = Metadata.detect_from_dataframes(dataframes)
+
+        for table_name, column_specs in table_specs.items():
+            for spec in column_specs.values():
+                update_kwargs: dict[str, Any] = {"sdtype": spec.sdtype}
+                if spec.datetime_format is not None:
+                    update_kwargs["datetime_format"] = spec.datetime_format
+                try:
+                    metadata.update_column(spec.name, table_name=table_name, **update_kwargs)
+                except Exception:
+                    continue
+
+        for table_name, table_payload in metadata.to_dict().get("tables", {}).items():
+            primary_key = table_payload.get("primary_key")
+            primary_key_spec = table_specs.get(table_name, {}).get(primary_key)
+            if primary_key is not None and (primary_key_spec is None or primary_key_spec.sdtype != "id"):
+                metadata.remove_primary_key(table_name=table_name)
+
+        return metadata
+
+    @staticmethod
+    def _align_relationship_specs(
+        *,
+        metadata: Metadata,
+        table_specs: dict[str, dict[str, ColumnSpec]],
+    ) -> None:
+        relationship_keys: set[tuple[str, str]] = set()
+        for relationship in metadata.to_dict().get("relationships", []):
+            relationship_keys.add((relationship["parent_table_name"], relationship["parent_primary_key"]))
+            relationship_keys.add((relationship["child_table_name"], relationship["child_foreign_key"]))
+
+        for table_name, column_name in relationship_keys:
+            spec = table_specs.get(table_name, {}).get(column_name)
+            if spec is not None and spec.sdtype != "id":
+                table_specs[table_name][column_name] = replace(
+                    spec,
+                    display_type="id",
+                    sdtype="id",
+                    numerical_kind=None,
+                )
+            metadata.update_column(column_name, table_name=table_name, sdtype="id")
 
     def _build_typed_dataframe(
         self,
@@ -254,10 +423,10 @@ class SdvSimilarService:
                 None if value is None else value.replace(",", ".")
                 for value in normalized_values
             ]
+            numeric_series = pd.Series(pd.to_numeric(numeric_values, errors="coerce"))
             if spec.numerical_kind == "int":
-                numeric_series = pd.to_numeric(numeric_values, errors="coerce")
                 return numeric_series.round().astype("Int64")
-            return pd.to_numeric(numeric_values, errors="coerce")
+            return numeric_series
 
         return pd.Series(normalized_values, dtype="object")
 
@@ -318,6 +487,25 @@ class SdvSimilarService:
 
         return summary[:10]
 
+    def _build_multi_table_summary(
+        self,
+        *,
+        tables: list[dict[str, Any]],
+        metadata_payload: dict[str, Any],
+    ) -> list[str]:
+        row_count = sum(table["row_count"] for table in tables)
+        relationship_count = len(metadata_payload.get("relationships", []))
+        summary = [
+            f"Таблиц во входном датасете: {len(tables)}",
+            f"Строк во всех CSV: {row_count}",
+            f"Связей SDV найдено: {relationship_count}",
+        ]
+        for table in tables[:5]:
+            summary.append(
+                f"{table['table_name']}: {table['row_count']} строк, {table['column_count']} колонок"
+            )
+        return summary[:10]
+
     def _build_analysis_warnings(
         self,
         *,
@@ -341,6 +529,25 @@ class SdvSimilarService:
                 f"Колонки с очень высокой уникальностью могут воспроизводиться хуже: {joined}."
             )
 
+        return warnings_list[:10]
+
+    def _build_multi_table_warnings(
+        self,
+        *,
+        tables: list[dict[str, Any]],
+        metadata_payload: dict[str, Any],
+    ) -> list[str]:
+        warnings_list: list[str] = []
+        if not metadata_payload.get("relationships"):
+            warnings_list.append(
+                "SDV не нашел foreign key связи между таблицами. Таблицы будут моделироваться как общий датасет без явных связей."
+            )
+        for table in tables:
+            if table["row_count"] < 10:
+                warnings_list.append(
+                    f"В таблице '{table['table_name']}' мало строк. Результат может быть менее стабильным."
+                )
+                break
         return warnings_list[:10]
 
     def _format_sampled_dataframe(
@@ -368,6 +575,71 @@ class SdvSimilarService:
             formatted_rows.append(row)
         return formatted_rows
 
+    def _format_multi_table_sampled_dataframes(
+        self,
+        *,
+        sampled_tables: dict[str, pd.DataFrame],
+        source_tables: dict[str, dict[str, Any]],
+        table_specs: dict[str, dict[str, ColumnSpec]],
+        relationships: list[dict[str, str]],
+    ) -> dict[str, list[dict[str, str]]]:
+        parent_key_maps: dict[tuple[str, str], dict[str, str]] = {}
+        child_foreign_keys = {
+            (relationship["child_table_name"], relationship["child_foreign_key"]): (
+                relationship["parent_table_name"],
+                relationship["parent_primary_key"],
+            )
+            for relationship in relationships
+        }
+
+        for relationship in relationships:
+            table_name = relationship["parent_table_name"]
+            column_name = relationship["parent_primary_key"]
+            dataframe = sampled_tables.get(table_name, pd.DataFrame(columns=source_tables[table_name]["header"]))
+            spec = table_specs[table_name][column_name]
+            value_map: dict[str, str] = {}
+            for row_index, (_, record) in enumerate(dataframe[source_tables[table_name]["header"]].iterrows()):
+                raw_value = record[column_name]
+                if pd.isna(raw_value):
+                    continue
+                if spec.id_strategy == "auto_increment":
+                    formatted_value = self._build_auto_increment_id(row_index=row_index, spec=spec)
+                else:
+                    formatted_value = self._format_value(value=raw_value, spec=spec)
+                value_map[str(raw_value)] = formatted_value
+            parent_key_maps[(table_name, column_name)] = value_map
+
+        formatted_tables: dict[str, list[dict[str, str]]] = {}
+        for table_name, table_payload in source_tables.items():
+            header = table_payload["header"]
+            dataframe = sampled_tables.get(table_name, pd.DataFrame(columns=header))
+            formatted_rows: list[dict[str, str]] = []
+            for row_index, (_, record) in enumerate(dataframe[header].iterrows()):
+                row: dict[str, str] = {}
+                for column_name in header:
+                    spec = table_specs[table_name][column_name]
+                    relationship_parent = child_foreign_keys.get((table_name, column_name))
+                    raw_value = record[column_name]
+                    if relationship_parent is not None and not pd.isna(raw_value):
+                        mapped_value = parent_key_maps.get(relationship_parent, {}).get(str(raw_value))
+                        if mapped_value is not None:
+                            row[column_name] = mapped_value
+                            continue
+                    if spec.id_strategy == "auto_increment":
+                        row[column_name] = self._build_auto_increment_id(
+                            row_index=row_index,
+                            spec=spec,
+                        )
+                    else:
+                        row[column_name] = self._format_value(
+                            value=raw_value,
+                            spec=spec,
+                        )
+                formatted_rows.append(row)
+            formatted_tables[table_name] = formatted_rows
+
+        return formatted_tables
+
     def _format_value(self, *, value: Any, spec: ColumnSpec) -> str:
         if pd.isna(value):
             return ""
@@ -391,6 +663,11 @@ class SdvSimilarService:
             return formatted or "0"
 
         return str(value)
+
+    @staticmethod
+    def _build_similar_table_file_name(file_name: str) -> str:
+        file_path = Path(file_name)
+        return f"{file_path.stem}_similar.csv"
 
     @staticmethod
     def _build_auto_increment_id(*, row_index: int, spec: ColumnSpec) -> str:
