@@ -1,8 +1,14 @@
 import base64
 import csv
 import io
+import zipfile
 
-from sda.use_cases.similar_csv import prepare_similar_analysis, run_similar_use_case
+from sda.use_cases.similar_csv import (
+    prepare_multi_table_similar_analysis,
+    prepare_similar_analysis,
+    run_multi_table_similar_use_case,
+    run_similar_use_case,
+)
 
 
 def test_similar_use_case_analyzes_and_generates_csv() -> None:
@@ -116,3 +122,89 @@ def test_similar_use_case_works_without_id_columns() -> None:
     assert result["file_name"] == "people_similar.csv"
     assert len(rows) == 4
     assert set(rows[0]) == {"name", "city", "status"}
+
+
+def test_multi_table_similar_use_case_generates_zip_with_related_tables() -> None:
+    users_csv = (
+        "user_id,name\n"
+        "1,Alice\n"
+        "2,Bob\n"
+        "3,Carol\n"
+        "4,Dan\n"
+        "5,Eve\n"
+        "6,Fay\n"
+    ).encode("utf-8")
+    orders_csv = (
+        "order_id,user_id,amount\n"
+        "1,1,10\n"
+        "2,2,20\n"
+        "3,1,15\n"
+        "4,3,30\n"
+        "5,4,25\n"
+        "6,5,40\n"
+    ).encode("utf-8")
+
+    analysis = prepare_multi_table_similar_analysis(
+        files=[
+            {"file_name": "users.csv", "content": users_csv},
+            {"file_name": "orders.csv", "content": orders_csv},
+        ],
+        preview_rows_limit=2,
+    )
+
+    assert analysis["tables"][0]["table_name"] == "users"
+    assert analysis["tables"][1]["table_name"] == "orders"
+    assert analysis["relationships"] == [
+        {
+            "parent_table_name": "users",
+            "child_table_name": "orders",
+            "parent_primary_key": "user_id",
+            "child_foreign_key": "user_id",
+        }
+    ]
+
+    result = run_multi_table_similar_use_case(
+        analysis_id="mta_test",
+        tables=analysis["stored_tables"],
+        metadata=analysis["metadata"],
+        table_specs=analysis["table_specs"],
+        scale=1.0,
+    )
+
+    archive = zipfile.ZipFile(io.BytesIO(base64.b64decode(result["archive_base64"])))
+    assert archive.namelist() == ["users_similar.csv", "orders_similar.csv"]
+
+    users = list(csv.DictReader(io.StringIO(archive.read("users_similar.csv").decode("utf-8"))))
+    orders = list(csv.DictReader(io.StringIO(archive.read("orders_similar.csv").decode("utf-8"))))
+    user_ids = {row["user_id"] for row in users}
+
+    assert result["result_format"] == "zip_base64"
+    assert len(users) >= 1
+    assert len(orders) >= 1
+    assert {row["user_id"] for row in orders}.issubset(user_ids)
+
+
+def test_multi_table_similar_use_case_supports_unrelated_tables() -> None:
+    analysis = prepare_multi_table_similar_analysis(
+        files=[
+            {
+                "file_name": "people.csv",
+                "content": b"name,status\nA,new\nB,paid\nC,new\nD,paid\nE,new\n",
+            },
+            {
+                "file_name": "cities.csv",
+                "content": b"city,score\nMoscow,10\nPerm,20\nKazan,30\nUfa,40\nOmsk,50\n",
+            },
+        ],
+    )
+
+    result = run_multi_table_similar_use_case(
+        analysis_id="mta_unrelated",
+        tables=analysis["stored_tables"],
+        metadata=analysis["metadata"],
+        table_specs=analysis["table_specs"],
+        scale=1.0,
+    )
+
+    archive = zipfile.ZipFile(io.BytesIO(base64.b64decode(result["archive_base64"])))
+    assert archive.namelist() == ["people_similar.csv", "cities_similar.csv"]

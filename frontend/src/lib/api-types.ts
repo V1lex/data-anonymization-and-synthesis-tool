@@ -113,6 +113,31 @@ export type SimilarAnalyzeResponse = {
   warnings: string[];
 };
 
+export type SimilarRelationshipProfile = {
+  parent_table_name: string;
+  child_table_name: string;
+  parent_primary_key: string;
+  child_foreign_key: string;
+};
+
+export type SimilarTableProfile = {
+  table_name: string;
+  file_name: string;
+  row_count: number;
+  column_count: number;
+  columns: SimilarColumnProfile[];
+  preview_rows: Array<Record<string, string | null>>;
+};
+
+export type SimilarMultiAnalyzeResponse = {
+  analysis_id: string;
+  table_count: number;
+  tables: SimilarTableProfile[];
+  relationships: SimilarRelationshipProfile[];
+  summary: string[];
+  warnings: string[];
+};
+
 export type SimilarRunResponse = {
   analysis_id: string;
   file_name: string;
@@ -120,5 +145,22 @@ export type SimilarRunResponse = {
   column_count: number;
   result_format: "csv_base64";
   content_base64: string;
+  warnings: string[];
+};
+
+export type SimilarGeneratedTable = {
+  table_name: string;
+  file_name: string;
+  row_count: number;
+  column_count: number;
+};
+
+export type SimilarMultiRunResponse = {
+  analysis_id: string;
+  file_name: string;
+  table_count: number;
+  tables: SimilarGeneratedTable[];
+  result_format: "zip_base64";
+  archive_base64: string;
   warnings: string[];
 };

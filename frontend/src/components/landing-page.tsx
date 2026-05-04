@@ -74,7 +74,7 @@ const content = {
     datasetsTitle: "Для чего можно применять",
     datasetsDescription:
       "Выберите сценарий в Generate, и товары/услуги в синтетическом каталоге будут соответствовать выбранной предметной области.",
-    datasets: ["Электронная коммерция", "Финтех", "Магазины", "Логистика", "Образование", "CRM"],
+    datasets: ["Электронная коммерция", "Финтех", "Продуктовые магазины", "Логистика", "Образование", "CRM"],
   },
   en: {
     heroEyebrow: "Data workflows for you",
@@ -127,7 +127,7 @@ const content = {
     datasetsTitle: "Where you can apply it",
     datasetsDescription:
       "Choose a Generate use case, and product or service names in the synthetic catalog will match that domain.",
-    datasets: ["E-commerce", "Fintech", "Shops", "Logistics", "EdTech", "CRM"],
+    datasets: ["E-commerce", "Fintech", "Grocery stores", "Logistics", "EdTech", "CRM"],
   },
 } as const;
 

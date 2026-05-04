@@ -5,10 +5,29 @@ from sda.core.domain.errors import (
     InvalidFileTypeError,
     SdaError,
     SynthesisFailedError,
+    ValidationError,
 )
-from sda.use_cases.similar_csv import prepare_similar_analysis, run_similar_use_case
-from sda.web.deps import SimilarAnalysisStore, get_similar_analysis_store
-from sda.web.schemas.similar import SimilarAnalyzeResponse, SimilarRunRequest, SimilarRunResponse
+from sda.core.domain.limits import MAX_MULTI_CSV_FILES
+from sda.use_cases.similar_csv import (
+    prepare_multi_table_similar_analysis,
+    prepare_similar_analysis,
+    run_multi_table_similar_use_case,
+    run_similar_use_case,
+)
+from sda.web.deps import (
+    MultiTableSimilarAnalysisStore,
+    SimilarAnalysisStore,
+    get_multi_table_similar_analysis_store,
+    get_similar_analysis_store,
+)
+from sda.web.schemas.similar import (
+    SimilarAnalyzeResponse,
+    SimilarMultiAnalyzeResponse,
+    SimilarMultiRunRequest,
+    SimilarMultiRunResponse,
+    SimilarRunRequest,
+    SimilarRunResponse,
+)
 
 router = APIRouter(prefix="/similar", tags=["similar"])
 
@@ -89,3 +108,77 @@ def run_similar(
         raise
     except Exception as exc:
         raise SynthesisFailedError("Не удалось сгенерировать похожий CSV.") from exc
+
+
+@router.post("/multi/analyze")
+async def analyze_multi_table_similar_csv(
+    files: list[UploadFile] = File(...),
+    preview_rows_limit: int = Form(default=5, ge=1, le=20),
+    has_header: bool = Form(default=True),
+    delimiter: str | None = Form(default=None, min_length=1, max_length=1),
+    store: MultiTableSimilarAnalysisStore = Depends(get_multi_table_similar_analysis_store),
+) -> dict:
+    if len(files) > MAX_MULTI_CSV_FILES:
+        # Let the use case return the detailed validation error after reading normal requests,
+        # but reject obviously oversized multipart bodies before loading all file bytes.
+        raise ValidationError("Можно загрузить не больше 5 CSV файлов.")
+
+    file_payloads: list[dict] = []
+    for file in files:
+        file_name = file.filename or "uploaded.csv"
+        if file.content_type not in CSV_CONTENT_TYPES and not file_name.lower().endswith(".csv"):
+            raise InvalidFileTypeError("Загружен файл не в формате CSV.")
+        file_payloads.append(
+            {
+                "file_name": file_name,
+                "content": await file.read(),
+            }
+        )
+
+    try:
+        analysis = prepare_multi_table_similar_analysis(
+            files=file_payloads,
+            preview_rows_limit=preview_rows_limit,
+            delimiter=delimiter,
+            has_header=has_header,
+        )
+        session = store.create(
+            tables=analysis["stored_tables"],
+            metadata=analysis["metadata"],
+            table_specs=analysis["table_specs"],
+            encoding=analysis["encoding"],
+        )
+        response = SimilarMultiAnalyzeResponse(
+            analysis_id=session.analysis_id,
+            table_count=len(analysis["tables"]),
+            tables=analysis["tables"],
+            relationships=analysis["relationships"],
+            summary=analysis["summary"],
+            warnings=analysis["warnings"],
+        )
+        return response.model_dump()
+    except SdaError:
+        raise
+    except Exception as exc:
+        raise AnalysisFailedError("Не удалось проанализировать связный CSV датасет.") from exc
+
+
+@router.post("/multi/run")
+def run_multi_table_similar(
+    request: SimilarMultiRunRequest,
+    store: MultiTableSimilarAnalysisStore = Depends(get_multi_table_similar_analysis_store),
+) -> dict:
+    try:
+        session = store.get(request.analysis_id)
+        result = run_multi_table_similar_use_case(
+            analysis_id=session.analysis_id,
+            tables=session.tables,
+            metadata=session.metadata,
+            table_specs=session.table_specs,
+            scale=request.scale,
+        )
+        return SimilarMultiRunResponse(**result).model_dump()
+    except SdaError:
+        raise
+    except Exception as exc:
+        raise SynthesisFailedError("Не удалось сгенерировать связный похожий датасет.") from exc

@@ -8,6 +8,8 @@ import type {
   GenerateTemplateId,
   GenerateTemplateSummary,
   SimilarAnalyzeResponse,
+  SimilarMultiAnalyzeResponse,
+  SimilarMultiRunResponse,
   SimilarRunResponse,
 } from "@/lib/api-types";
 
@@ -68,6 +70,20 @@ function buildCsvFormData(file: File, options?: { previewRowsLimit?: number }) {
   return formData;
 }
 
+function buildMultiCsvFormData(files: File[], options?: { previewRowsLimit?: number }) {
+  const formData = new FormData();
+  files.forEach((file) => {
+    formData.append("files", file);
+  });
+
+  if (options?.previewRowsLimit) {
+    formData.append("preview_rows_limit", String(options.previewRowsLimit));
+  }
+  formData.append("has_header", "true");
+
+  return formData;
+}
+
 export async function fetchGenerateDomains(): Promise<{ items: GenerateDomainSummary[] }> {
   const response = await fetch(`${API_BASE_URL}/generate/domains`);
   return parseJsonResponse(response);
@@ -114,4 +130,23 @@ export async function analyzeSimilarFile(
 
 export async function runSimilar(request: { analysis_id: string; target_rows: number }): Promise<SimilarRunResponse> {
   return postJson("/similar/run", request);
+}
+
+export async function analyzeMultiTableSimilarFiles(
+  files: File[],
+  options?: { previewRowsLimit?: number },
+): Promise<SimilarMultiAnalyzeResponse> {
+  const response = await fetch(`${API_BASE_URL}/similar/multi/analyze`, {
+    method: "POST",
+    body: buildMultiCsvFormData(files, options),
+  });
+
+  return parseJsonResponse(response);
+}
+
+export async function runMultiTableSimilar(request: {
+  analysis_id: string;
+  scale: number;
+}): Promise<SimilarMultiRunResponse> {
+  return postJson("/similar/multi/run", request);
 }
