@@ -27,6 +27,8 @@ UPLOAD_STORE_DIR = Path(gettempdir()) / "sda_upload_store"
 UPLOAD_ID_PREFIX = "upload_"
 SIMILAR_ANALYSIS_STORE_DIR = Path(gettempdir()) / "sda_similar_analysis_store"
 ANALYSIS_ID_PREFIX = "ana_"
+MULTI_TABLE_SIMILAR_ANALYSIS_STORE_DIR = Path(gettempdir()) / "sda_multi_table_similar_analysis_store"
+MULTI_ANALYSIS_ID_PREFIX = "mta_"
 
 
 def _templates_dir() -> Path:
@@ -84,6 +86,16 @@ class SimilarAnalysisSession:
     delimiter: str
     metadata: dict[str, Any]
     column_specs: dict[str, dict[str, Any]]
+    encoding: str = "utf-8"
+    created_at: float = field(default_factory=time.time)
+
+
+@dataclass
+class MultiTableSimilarAnalysisSession:
+    analysis_id: str
+    tables: dict[str, dict[str, Any]]
+    metadata: dict[str, Any]
+    table_specs: dict[str, dict[str, dict[str, Any]]]
     encoding: str = "utf-8"
     created_at: float = field(default_factory=time.time)
 
@@ -276,8 +288,97 @@ class SimilarAnalysisStore:
         return session
 
 
+class MultiTableSimilarAnalysisStore:
+    def __init__(self, *, storage_dir: Path | None = None, ttl_seconds: int = UPLOAD_TTL_SECONDS) -> None:
+        self._storage_dir = Path(storage_dir or MULTI_TABLE_SIMILAR_ANALYSIS_STORE_DIR)
+        self._ttl_seconds = ttl_seconds
+        self._lock = Lock()
+        self._storage_dir.mkdir(parents=True, exist_ok=True)
+
+    def _session_path(self, analysis_id: str) -> Path:
+        return self._storage_dir / f"{analysis_id}.json"
+
+    def _write_session(self, session: MultiTableSimilarAnalysisSession) -> None:
+        path = self._session_path(session.analysis_id)
+        tmp_path = path.with_suffix(".json.tmp")
+        tmp_path.write_text(json.dumps(asdict(session), ensure_ascii=False), encoding="utf-8")
+        tmp_path.replace(path)
+
+    def _read_session(self, analysis_id: str) -> MultiTableSimilarAnalysisSession:
+        path = self._session_path(analysis_id)
+        payload: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+        return MultiTableSimilarAnalysisSession(
+            analysis_id=str(payload["analysis_id"]),
+            tables=dict(payload["tables"]),
+            metadata=dict(payload["metadata"]),
+            table_specs=dict(payload["table_specs"]),
+            encoding=str(payload.get("encoding", "utf-8")),
+            created_at=float(payload.get("created_at", 0.0)),
+        )
+
+    def _is_expired(self, session: MultiTableSimilarAnalysisSession) -> bool:
+        return self._ttl_seconds > 0 and (time.time() - session.created_at) > self._ttl_seconds
+
+    def _cleanup_expired_locked(self) -> None:
+        for path in self._storage_dir.glob("*.json"):
+            try:
+                session = self._read_session(path.stem)
+            except (KeyError, TypeError, ValueError, json.JSONDecodeError):
+                path.unlink(missing_ok=True)
+                continue
+
+            if self._is_expired(session):
+                path.unlink(missing_ok=True)
+
+    def _next_analysis_id_locked(self) -> str:
+        next_value = 1
+        for path in self._storage_dir.glob(f"{MULTI_ANALYSIS_ID_PREFIX}*.json"):
+            suffix = path.stem.removeprefix(MULTI_ANALYSIS_ID_PREFIX)
+            if suffix.isdigit():
+                next_value = max(next_value, int(suffix) + 1)
+        return f"{MULTI_ANALYSIS_ID_PREFIX}{next_value}"
+
+    def create(
+        self,
+        *,
+        tables: dict[str, dict[str, Any]],
+        metadata: dict[str, Any],
+        table_specs: dict[str, dict[str, dict[str, Any]]],
+        encoding: str = "utf-8",
+    ) -> MultiTableSimilarAnalysisSession:
+        with self._lock:
+            self._cleanup_expired_locked()
+            session = MultiTableSimilarAnalysisSession(
+                analysis_id=self._next_analysis_id_locked(),
+                tables=tables,
+                metadata=metadata,
+                table_specs=table_specs,
+                encoding=encoding,
+            )
+            self._write_session(session)
+        return session
+
+    def get(self, analysis_id: str) -> MultiTableSimilarAnalysisSession:
+        with self._lock:
+            path = self._session_path(analysis_id)
+            if not path.exists():
+                raise AnalysisNotFoundError(
+                    f"analysis_id '{analysis_id}' не найден.",
+                    details={"analysis_id": analysis_id},
+                )
+            session = self._read_session(analysis_id)
+            if self._is_expired(session):
+                path.unlink(missing_ok=True)
+                raise AnalysisNotFoundError(
+                    f"analysis_id '{analysis_id}' истек.",
+                    details={"analysis_id": analysis_id},
+                )
+        return session
+
+
 _upload_store = UploadStore()
 _similar_analysis_store = SimilarAnalysisStore()
+_multi_table_similar_analysis_store = MultiTableSimilarAnalysisStore()
 
 
 def get_upload_store() -> UploadStore:
@@ -286,3 +387,7 @@ def get_upload_store() -> UploadStore:
 
 def get_similar_analysis_store() -> SimilarAnalysisStore:
     return _similar_analysis_store
+
+
+def get_multi_table_similar_analysis_store() -> MultiTableSimilarAnalysisStore:
+    return _multi_table_similar_analysis_store

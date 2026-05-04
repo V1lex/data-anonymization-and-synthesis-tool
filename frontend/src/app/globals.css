@@ -1805,6 +1805,19 @@ html[lang="ru"] .knowledge-section__header h2 {
   justify-content: center;
 }
 
+.similar-mode-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+
+.similar-mode-card {
+  min-height: 360px;
+}
+
 .tool-surface {
   border-radius: 32px;
   padding: 28px;
@@ -1825,6 +1838,9 @@ html[lang="ru"] .knowledge-section__header h2 {
 .tool-surface > .column-summary-grid,
 .tool-surface > .upload-dropzone,
 .tool-surface > .preview-panel,
+.tool-surface > .multi-table-list,
+.tool-surface > .relationship-list,
+.tool-surface > .sidebar-card,
 .tool-surface > .tool-action {
   width: 100%;
 }
@@ -2135,6 +2151,17 @@ html[lang="ru"] .knowledge-section__header h2 {
   border-radius: 0;
 }
 
+.multi-table-list,
+.relationship-list {
+  display: grid;
+  gap: 14px;
+  width: 100%;
+}
+
+.relationship-list {
+  margin-top: 18px;
+}
+
 .chip-list,
 .method-row {
   display: flex;
@@ -2425,7 +2452,8 @@ html[lang="ru"] .knowledge-section__header h2 {
   }
 
   .marketing-section,
-  .tool-layout {
+  .tool-layout,
+  .similar-mode-grid {
     grid-template-columns: 1fr;
   }
 

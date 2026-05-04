@@ -41,11 +41,41 @@ class SimilarAnalyzeResponse(BaseModel):
     warnings: list[str] = Field(default_factory=list, max_length=10)
 
 
+class SimilarTableProfile(BaseModel):
+    table_name: str = Field(..., min_length=1, max_length=128)
+    file_name: str = Field(..., min_length=1, max_length=256)
+    row_count: int = Field(..., ge=1, le=MAX_SIMILAR_ROWS)
+    column_count: int = Field(..., ge=1, le=MAX_SIMILAR_COLUMNS)
+    columns: list[SimilarColumnProfile] = Field(..., min_length=1, max_length=MAX_SIMILAR_COLUMNS)
+    preview_rows: list[dict[str, str | None]] = Field(default_factory=list, max_length=5)
+
+
+class SimilarRelationshipProfile(BaseModel):
+    parent_table_name: str = Field(..., min_length=1, max_length=128)
+    child_table_name: str = Field(..., min_length=1, max_length=128)
+    parent_primary_key: str = Field(..., min_length=1, max_length=128)
+    child_foreign_key: str = Field(..., min_length=1, max_length=128)
+
+
+class SimilarMultiAnalyzeResponse(BaseModel):
+    analysis_id: str = Field(..., min_length=1, max_length=64)
+    table_count: int = Field(..., ge=2, le=5)
+    tables: list[SimilarTableProfile] = Field(..., min_length=2, max_length=5)
+    relationships: list[SimilarRelationshipProfile] = Field(default_factory=list, max_length=20)
+    summary: list[str] = Field(default_factory=list, max_length=10)
+    warnings: list[str] = Field(default_factory=list, max_length=10)
+
+
 class SimilarRunRequest(BaseModel):
     model_config = ConfigDict(use_enum_values=True)
 
     analysis_id: str = Field(..., min_length=1, max_length=64)
     target_rows: int = Field(..., ge=1, le=MAX_SIMILAR_ROWS)
+
+
+class SimilarMultiRunRequest(BaseModel):
+    analysis_id: str = Field(..., min_length=1, max_length=64)
+    scale: float = Field(default=1.0, ge=0.1, le=5.0)
 
 
 class SimilarRunResponse(BaseModel):
@@ -66,12 +96,43 @@ class SimilarRunResponse(BaseModel):
         return self
 
 
+class SimilarGeneratedTable(BaseModel):
+    table_name: str = Field(..., min_length=1, max_length=128)
+    file_name: str = Field(..., min_length=1, max_length=128)
+    row_count: int = Field(..., ge=0, le=MAX_SIMILAR_ROWS * 5)
+    column_count: int = Field(..., ge=1, le=MAX_SIMILAR_COLUMNS)
+
+
+class SimilarMultiRunResponse(BaseModel):
+    model_config = ConfigDict(use_enum_values=True)
+
+    analysis_id: str = Field(..., min_length=1, max_length=64)
+    file_name: str = Field(..., min_length=1, max_length=128)
+    table_count: int = Field(..., ge=2, le=5)
+    tables: list[SimilarGeneratedTable] = Field(..., min_length=2, max_length=5)
+    result_format: ResultFormat = Field(default=ResultFormat.ZIP_BASE64)
+    archive_base64: str = Field(..., min_length=1)
+    warnings: list[str] = Field(default_factory=list, max_length=10)
+
+    @model_validator(mode="after")
+    def validate_result_format(self) -> "SimilarMultiRunResponse":
+        if self.result_format != ResultFormat.ZIP_BASE64:
+            raise ValueError("multi-table similar responses support only zip_base64")
+        return self
+
+
 __all__ = [
     "ErrorResponse",
     "ResultFormat",
     "SimilarAnalyzeRequest",
     "SimilarAnalyzeResponse",
     "SimilarColumnProfile",
+    "SimilarGeneratedTable",
+    "SimilarMultiAnalyzeResponse",
+    "SimilarMultiRunRequest",
+    "SimilarMultiRunResponse",
+    "SimilarRelationshipProfile",
     "SimilarRunRequest",
     "SimilarRunResponse",
+    "SimilarTableProfile",
 ]

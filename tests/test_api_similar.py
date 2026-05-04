@@ -1,6 +1,7 @@
 import base64
 import csv
 import io
+import zipfile
 
 from fastapi.testclient import TestClient
 
@@ -97,3 +98,71 @@ def test_post_similar_run_returns_analysis_not_found() -> None:
     assert response.status_code == 404
     payload = response.json()
     assert payload["error_code"] == "analysis_not_found"
+
+
+def test_post_similar_multi_analyze_and_run_returns_zip() -> None:
+    users_csv = (
+        "user_id,name\n"
+        "1,Alice\n"
+        "2,Bob\n"
+        "3,Carol\n"
+        "4,Dan\n"
+        "5,Eve\n"
+        "6,Fay\n"
+    ).encode("utf-8")
+    orders_csv = (
+        "order_id,user_id,amount\n"
+        "1,1,10\n"
+        "2,2,20\n"
+        "3,1,15\n"
+        "4,3,30\n"
+        "5,4,25\n"
+        "6,5,40\n"
+    ).encode("utf-8")
+
+    analyze_response = client.post(
+        "/api/v1/similar/multi/analyze",
+        files=[
+            ("files", ("users.csv", users_csv, "text/csv")),
+            ("files", ("orders.csv", orders_csv, "text/csv")),
+        ],
+        data={"has_header": "true", "preview_rows_limit": "2"},
+    )
+
+    assert analyze_response.status_code == 200
+    analyze_payload = analyze_response.json()
+    assert analyze_payload["analysis_id"].startswith("mta_")
+    assert analyze_payload["table_count"] == 2
+    assert [table["table_name"] for table in analyze_payload["tables"]] == ["users", "orders"]
+    assert analyze_payload["relationships"] == [
+        {
+            "parent_table_name": "users",
+            "child_table_name": "orders",
+            "parent_primary_key": "user_id",
+            "child_foreign_key": "user_id",
+        }
+    ]
+
+    run_response = client.post(
+        "/api/v1/similar/multi/run",
+        json={"analysis_id": analyze_payload["analysis_id"], "scale": 1.0},
+    )
+
+    assert run_response.status_code == 200
+    run_payload = run_response.json()
+    assert run_payload["result_format"] == "zip_base64"
+    assert run_payload["file_name"] == "similar_dataset.zip"
+    archive = zipfile.ZipFile(io.BytesIO(base64.b64decode(run_payload["archive_base64"])))
+    assert archive.namelist() == ["users_similar.csv", "orders_similar.csv"]
+
+
+def test_post_similar_multi_analyze_requires_two_files() -> None:
+    response = client.post(
+        "/api/v1/similar/multi/analyze",
+        files=[("files", ("users.csv", b"user_id,name\n1,Alice\n", "text/csv"))],
+        data={"has_header": "true"},
+    )
+
+    assert response.status_code == 422
+    payload = response.json()
+    assert payload["error_code"] == "validation_error"
