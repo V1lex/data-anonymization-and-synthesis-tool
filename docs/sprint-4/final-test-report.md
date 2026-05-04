@@ -1,14 +1,8 @@
 # Финальный test report Sprint 4
 
-**Дата обновления:** 5 мая 2026
-**Ветка проверки:** `task-T044-final-regression-uat`
-**База:** после merge актуального `origin/main`
-
 ## Итог
 
 Generate, Anonymize и Similar прошли актуальную автоматическую регрессию.
-
-Backend test suite на последней версии содержит 94 теста. Последний полный прогон:
 
 ```text
 94 passed in 3.76s
@@ -85,7 +79,6 @@ npm run build
 
 - доступно 5 шаблонов: `users`, `products`, `orders`, `payments`, `support_tickets`;
 - доступны 6 доменов генерации: `ecommerce`, `fintech`, `shops`, `logistics`, `education`, `crm`;
-- домен `shops` описывает продуктовые магазины и генерирует food/grocery products;
 - frontend больше не выбирает `products` автоматически;
 - одиночный шаблон возвращается как CSV base64;
 - несколько связанных шаблонов возвращаются ZIP-архивом;
@@ -147,5 +140,3 @@ README и sprint-4 документы приведены к текущему с�
 ## 5. Known status
 
 Блокирующих проблем по автоматической регрессии и production build не обнаружено.
-
-Текущее состояние готово для demo/UAT по Sprint 4.
