@@ -5,6 +5,16 @@ from sda.core.domain.errors import GenerationError
 from sda.core.generation.generator import DataGenerator
 
 
+class CountingValidationGenerator(DataGenerator):
+    def __init__(self) -> None:
+        super().__init__()
+        self.validation_calls = 0
+
+    def _validate_column_config(self, template_id: str, column: dict) -> None:
+        self.validation_calls += 1
+        super()._validate_column_config(template_id, column)
+
+
 def test_data_generator_uses_requested_locale() -> None:
     generator = DataGenerator(locale="en_US")
     assert generator.locale == "en_US"
@@ -26,6 +36,14 @@ def test_generate_table_invalid_count() -> None:
     generator = DataGenerator()
     with pytest.raises(GenerationError, match="больше нуля"):
         generator.generate_table("users", 0)
+
+
+def test_generate_table_validates_template_columns_once_per_run() -> None:
+    generator = CountingValidationGenerator()
+
+    generator.generate_table("users", 5)
+
+    assert generator.validation_calls == len(generator.load_template("users")["columns"])
 
 
 def test_auto_increment_provider() -> None:

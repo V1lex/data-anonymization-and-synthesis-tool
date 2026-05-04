@@ -6,6 +6,7 @@ from typing import Any
 
 import pandas as pd
 from sdv.metadata import Metadata
+from sdv.multi_table import HMASynthesizer
 from sdv.single_table import GaussianCopulaSynthesizer
 
 SDV_TABLE_NAME = "source_table"
@@ -115,6 +116,83 @@ class SdvSimilarService:
             "warnings": warnings_list[:10],
         }
 
+    def synthesize_multi(
+        self,
+        *,
+        tables: dict[str, dict[str, Any]],
+        relationships: list[dict[str, str]],
+        target_rows_by_table: dict[str, int],
+    ) -> dict[str, Any]:
+        dataframes: dict[str, pd.DataFrame] = {}
+        table_specs: dict[str, dict[str, ColumnSpec]] = {}
+
+        for table_name, table_payload in tables.items():
+            column_specs_payload = self._with_relationship_column_specs(
+                table_name=table_name,
+                column_specs_payload=dict(table_payload["column_specs"]),
+                relationships=relationships,
+            )
+            dataframe, column_specs = self._build_typed_dataframe(
+                rows=table_payload["rows"],
+                header=table_payload["header"],
+                stored_specs=column_specs_payload,
+            )
+            dataframes[table_name] = dataframe
+            table_specs[table_name] = column_specs
+
+        metadata = self._build_multi_table_metadata(
+            dataframes=dataframes,
+            table_specs=table_specs,
+            relationships=relationships,
+        )
+        scale = self._calculate_multi_table_scale(
+            tables=tables,
+            target_rows_by_table=target_rows_by_table,
+        )
+        warnings_list: list[str] = []
+
+        with warnings.catch_warnings(record=True) as captured_warnings:
+            warnings.filterwarnings(
+                "ignore",
+                message="We strongly recommend saving the metadata using 'save_to_json'.*",
+            )
+            synthesizer = HMASynthesizer(metadata, verbose=False)
+            synthesizer.fit(dataframes)
+            sampled_tables = synthesizer.sample(scale=scale)
+
+        for item in captured_warnings:
+            message = str(item.message).strip()
+            if message:
+                warnings_list.append(message)
+
+        formatted_tables: dict[str, list[dict[str, str]]] = {}
+        for table_name, table_payload in tables.items():
+            sampled = sampled_tables.get(table_name)
+            if sampled is None:
+                sampled = dataframes[table_name].head(0)
+            header = list(table_payload["header"])
+            formatted_rows = self._format_sampled_dataframe(
+                dataframe=sampled,
+                header=header,
+                column_specs=table_specs[table_name],
+            )
+            formatted_tables[table_name] = self._resize_formatted_rows(
+                rows=formatted_rows,
+                target_rows=target_rows_by_table[table_name],
+                header=header,
+                column_specs=table_specs[table_name],
+            )
+
+        self._enforce_relationship_values(
+            tables=formatted_tables,
+            relationships=relationships,
+            table_specs=table_specs,
+        )
+        return {
+            "tables": formatted_tables,
+            "warnings": warnings_list[:10],
+        }
+
     def _build_metadata(
         self,
         *,
@@ -138,6 +216,46 @@ class SdvSimilarService:
         primary_key_spec = column_specs.get(primary_key) if primary_key is not None else None
         if primary_key is not None and (primary_key_spec is None or primary_key_spec.sdtype != "id"):
             metadata.remove_primary_key(table_name=SDV_TABLE_NAME)
+
+        return metadata
+
+    def _build_multi_table_metadata(
+        self,
+        *,
+        dataframes: dict[str, pd.DataFrame],
+        table_specs: dict[str, dict[str, ColumnSpec]],
+        relationships: list[dict[str, str]],
+    ) -> Metadata:
+        try:
+            metadata = Metadata.detect_from_dataframes(data=dataframes, infer_keys=None)
+        except TypeError:
+            metadata = Metadata.detect_from_dataframes(dataframes)
+
+        for table_name, column_specs in table_specs.items():
+            for spec in column_specs.values():
+                update_kwargs: dict[str, Any] = {"sdtype": spec.sdtype}
+                if spec.datetime_format is not None:
+                    update_kwargs["datetime_format"] = spec.datetime_format
+                metadata.update_column(spec.name, table_name=table_name, **update_kwargs)
+
+        for table_name, column_specs in table_specs.items():
+            primary_key = self._find_primary_key(column_specs=column_specs)
+            if primary_key is not None:
+                metadata.set_primary_key(primary_key, table_name=table_name)
+
+        existing_relationships = (
+            metadata.to_dict()
+            .get("relationships", [])
+        )
+        for relationship in relationships:
+            if relationship in existing_relationships:
+                continue
+            metadata.add_relationship(
+                parent_table_name=relationship["parent_table_name"],
+                child_table_name=relationship["child_table_name"],
+                parent_primary_key=relationship["parent_primary_key"],
+                child_foreign_key=relationship["child_foreign_key"],
+            )
 
         return metadata
 
@@ -421,6 +539,121 @@ class SdvSimilarService:
             sequence_prefix=payload.get("sequence_prefix"),
             sequence_suffix=payload.get("sequence_suffix"),
         )
+
+    @staticmethod
+    def _with_relationship_column_specs(
+        *,
+        table_name: str,
+        column_specs_payload: dict[str, dict[str, Any]],
+        relationships: list[dict[str, str]],
+    ) -> dict[str, dict[str, Any]]:
+        adjusted_specs = {
+            column_name: dict(payload)
+            for column_name, payload in column_specs_payload.items()
+        }
+        for relationship in relationships:
+            if relationship["parent_table_name"] == table_name:
+                column_name = relationship["parent_primary_key"]
+                is_child_key = False
+            elif relationship["child_table_name"] == table_name:
+                column_name = relationship["child_foreign_key"]
+                is_child_key = True
+            else:
+                continue
+
+            if column_name not in adjusted_specs:
+                continue
+            adjusted_specs[column_name]["display_type"] = "id"
+            adjusted_specs[column_name]["sdtype"] = "id"
+            adjusted_specs[column_name]["numerical_kind"] = None
+            if is_child_key:
+                adjusted_specs[column_name]["id_strategy"] = None
+                adjusted_specs[column_name]["sequence_start"] = None
+                adjusted_specs[column_name]["sequence_step"] = None
+                adjusted_specs[column_name]["sequence_width"] = None
+                adjusted_specs[column_name]["sequence_prefix"] = None
+                adjusted_specs[column_name]["sequence_suffix"] = None
+
+        return adjusted_specs
+
+    @staticmethod
+    def _find_primary_key(*, column_specs: dict[str, ColumnSpec]) -> str | None:
+        for column_name, spec in column_specs.items():
+            if spec.sdtype == "id" and spec.id_strategy == "auto_increment":
+                return column_name
+        for column_name, spec in column_specs.items():
+            if spec.sdtype == "id":
+                return column_name
+        return None
+
+    @staticmethod
+    def _calculate_multi_table_scale(
+        *,
+        tables: dict[str, dict[str, Any]],
+        target_rows_by_table: dict[str, int],
+    ) -> float:
+        scale = 1.0
+        for table_name, table_payload in tables.items():
+            source_rows = max(1, len(table_payload["rows"]))
+            target_rows = max(1, target_rows_by_table.get(table_name, source_rows))
+            scale = max(scale, target_rows / source_rows)
+        return max(1.0, scale * 1.1)
+
+    def _resize_formatted_rows(
+        self,
+        *,
+        rows: list[dict[str, str]],
+        target_rows: int,
+        header: list[str],
+        column_specs: dict[str, ColumnSpec],
+    ) -> list[dict[str, str]]:
+        if len(rows) >= target_rows:
+            return rows[:target_rows]
+        if not rows:
+            return []
+
+        resized = list(rows)
+        while len(resized) < target_rows:
+            source = rows[len(resized) % len(rows)]
+            cloned = {
+                column_name: source.get(column_name, "")
+                for column_name in header
+            }
+            row_index = len(resized)
+            for column_name, spec in column_specs.items():
+                if spec.id_strategy == "auto_increment":
+                    cloned[column_name] = self._build_auto_increment_id(
+                        row_index=row_index,
+                        spec=spec,
+                    )
+            resized.append(cloned)
+        return resized
+
+    @staticmethod
+    def _enforce_relationship_values(
+        *,
+        tables: dict[str, list[dict[str, str]]],
+        relationships: list[dict[str, str]],
+        table_specs: dict[str, dict[str, ColumnSpec]],
+    ) -> None:
+        for relationship in relationships:
+            parent_rows = tables.get(relationship["parent_table_name"], [])
+            child_rows = tables.get(relationship["child_table_name"], [])
+            parent_key = relationship["parent_primary_key"]
+            child_key = relationship["child_foreign_key"]
+            parent_values = [
+                row.get(parent_key, "")
+                for row in parent_rows
+                if row.get(parent_key, "")
+            ]
+            if not parent_values or not child_rows:
+                continue
+
+            child_spec = table_specs.get(relationship["child_table_name"], {}).get(child_key)
+            for index, row in enumerate(child_rows):
+                if child_spec is not None and child_spec.id_strategy == "auto_increment":
+                    continue
+                row[child_key] = parent_values[index % len(parent_values)]
 
     @staticmethod
     def _detect_boolean_tokens(values: list[str]) -> tuple[str, str] | None:

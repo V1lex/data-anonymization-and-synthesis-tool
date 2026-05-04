@@ -3,9 +3,10 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from sda.core.domain.limits import MAX_GENERATE_ROWS_PER_FILE, MAX_GENERATE_TOTAL_ROWS
 from sda.core.generation.generator import DEFAULT_FAKER_LOCALE
 
-MAX_ROWS_PER_FILE = 10_000
+MAX_ROWS_PER_FILE = MAX_GENERATE_ROWS_PER_FILE
 MIN_ROWS_PER_FILE = 1
 MAX_TEMPLATE_COLUMNS = 64
 MAX_PREVIEW_COLUMNS = MAX_TEMPLATE_COLUMNS
@@ -112,6 +113,9 @@ class GenerateRunRequest(BaseModel):
         template_ids = [item.template_id for item in self.items]
         if len(set(template_ids)) != len(template_ids):
             raise ValueError("each template_id can be requested only once")
+        total_rows = sum(item.row_count for item in self.items)
+        if total_rows > MAX_GENERATE_TOTAL_ROWS:
+            raise ValueError(f"total row_count must not exceed {MAX_GENERATE_TOTAL_ROWS}")
         return self
 
 
@@ -132,7 +136,7 @@ class GenerateRunResponse(BaseModel):
     generated_files: list[GeneratedFile] = Field(..., min_length=1, max_length=len(VALID_TEMPLATE_IDS))
     content_base64: str | None = Field(default=None, min_length=1)
     archive_base64: str | None = Field(default=None, min_length=1)
-    total_rows: int = Field(..., ge=MIN_ROWS_PER_FILE, le=MAX_ROWS_PER_FILE * len(VALID_TEMPLATE_IDS))
+    total_rows: int = Field(..., ge=MIN_ROWS_PER_FILE, le=MAX_GENERATE_TOTAL_ROWS)
     warnings: list[str] = Field(default_factory=list, max_length=10)
 
     @model_validator(mode="after")

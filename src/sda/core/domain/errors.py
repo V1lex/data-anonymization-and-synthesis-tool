@@ -94,6 +94,13 @@ class AnalysisNotFoundError(SdaError):
     status_code = 404
 
 
+class SimilarJobNotFoundError(SdaError):
+    """Возникает, когда job_id Similar не найден."""
+
+    error_code = "similar_job_not_found"
+    status_code = 404
+
+
 class UnknownColumnError(SdaError):
     """Возникает, когда правило ссылается на отсутствующую колонку."""
 

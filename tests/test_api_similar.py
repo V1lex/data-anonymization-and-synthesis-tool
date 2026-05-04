@@ -1,10 +1,19 @@
 import base64
 import csv
 import io
+import time
 
 from fastapi.testclient import TestClient
 
 from sda.web.app import app
+from sda.web.deps import (
+    SimilarAnalysisGroupStore,
+    SimilarAnalysisStore,
+    SimilarJobStore,
+    get_similar_analysis_store,
+    get_similar_group_store,
+    get_similar_job_store,
+)
 
 client = TestClient(app)
 
@@ -97,3 +106,61 @@ def test_post_similar_run_returns_analysis_not_found() -> None:
     assert response.status_code == 404
     payload = response.json()
     assert payload["error_code"] == "analysis_not_found"
+
+
+def test_post_similar_job_tracks_async_status(monkeypatch, tmp_path) -> None:
+    from sda.web.routers import similar as similar_router
+
+    analysis_store = SimilarAnalysisStore(storage_dir=tmp_path / "analysis", ttl_seconds=60)
+    group_store = SimilarAnalysisGroupStore(storage_dir=tmp_path / "groups", ttl_seconds=60)
+    job_store = SimilarJobStore(storage_dir=tmp_path / "jobs", ttl_seconds=60)
+    session = analysis_store.create(
+        file_name="orders.csv",
+        rows=[{"order_id": "1"}, {"order_id": "2"}],
+        header=["order_id"],
+        delimiter=",",
+        metadata={},
+        column_specs={},
+    )
+
+    def fake_run_similar_use_case(**_):
+        return {
+            "analysis_id": session.analysis_id,
+            "file_name": "orders_similar.csv",
+            "row_count": 2,
+            "column_count": 1,
+            "result_format": "csv_base64",
+            "content_base64": base64.b64encode(b"order_id\n1\n2\n").decode("ascii"),
+            "warnings": [],
+        }
+
+    monkeypatch.setattr(similar_router, "run_similar_use_case", fake_run_similar_use_case)
+    app.dependency_overrides[get_similar_analysis_store] = lambda: analysis_store
+    app.dependency_overrides[get_similar_group_store] = lambda: group_store
+    app.dependency_overrides[get_similar_job_store] = lambda: job_store
+
+    try:
+        response = client.post(
+            "/api/v1/similar/jobs",
+            json={"analysis_id": session.analysis_id, "target_rows": 2},
+        )
+
+        assert response.status_code == 202
+        job_payload = response.json()
+        assert job_payload["job_id"].startswith("job_")
+        assert job_payload["status"] == "queued"
+
+        status_payload = {}
+        for _ in range(50):
+            status_response = client.get(job_payload["status_url"])
+            assert status_response.status_code == 200
+            status_payload = status_response.json()
+            if status_payload["status"] == "succeeded":
+                break
+            time.sleep(0.02)
+
+        assert status_payload["status"] == "succeeded"
+        assert status_payload["progress"] == 1.0
+        assert status_payload["result"]["file_name"] == "orders_similar.csv"
+    finally:
+        app.dependency_overrides.clear()

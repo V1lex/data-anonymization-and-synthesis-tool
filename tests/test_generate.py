@@ -3,6 +3,7 @@ import zipfile
 
 import pytest
 
+from sda.core.domain.limits import MAX_GENERATE_ROWS_PER_FILE, MAX_GENERATE_TOTAL_ROWS
 from sda.core.domain.errors import GenerationError
 from sda.use_cases.generate_csv import generate_csv_use_case
 
@@ -109,5 +110,28 @@ def test_generate_csv_use_case_rejects_missing_dependencies() -> None:
     ):
         generate_csv_use_case(
             [{"template_id": "orders", "row_count": 1}],
+            generator=StubGenerator(),
+        )
+
+
+def test_generate_csv_use_case_allows_larger_single_file_limit() -> None:
+    generator = StubGenerator()
+
+    result = generate_csv_use_case(
+        [{"template_id": "users", "row_count": MAX_GENERATE_ROWS_PER_FILE}],
+        generator=generator,
+    )
+
+    assert result["total_rows"] == MAX_GENERATE_ROWS_PER_FILE
+    assert generator.received_items == [{"template_id": "users", "row_count": MAX_GENERATE_ROWS_PER_FILE}]
+
+
+def test_generate_csv_use_case_rejects_unsafe_total_rows() -> None:
+    with pytest.raises(GenerationError, match="Суммарное число строк"):
+        generate_csv_use_case(
+            [
+                {"template_id": "users", "row_count": MAX_GENERATE_TOTAL_ROWS},
+                {"template_id": "products", "row_count": 1},
+            ],
             generator=StubGenerator(),
         )

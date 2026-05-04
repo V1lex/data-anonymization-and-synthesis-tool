@@ -3,6 +3,7 @@ import zipfile
 from collections.abc import Sequence
 from typing import Any
 
+from sda.core.domain.limits import MAX_GENERATE_ROWS_PER_FILE, MAX_GENERATE_TOTAL_ROWS
 from sda.core.domain.errors import GenerationError
 from sda.core.generation.validators import apply_generation_semantics
 from sda.core.generation.generator import DEFAULT_FAKER_LOCALE, DataGenerator
@@ -76,6 +77,36 @@ def _order_generation_items(items: list[dict[str, int]]) -> list[dict[str, int]]
     return ordered_items
 
 
+def _validate_generation_volume(items: Sequence[dict[str, int]]) -> None:
+    total_rows = 0
+    for item in items:
+        template_id = str(item.get("template_id"))
+        row_count = item.get("row_count")
+        if not isinstance(row_count, int):
+            raise GenerationError(f"row_count для '{template_id}' должен быть целым числом.")
+        if row_count <= 0:
+            raise GenerationError(f"row_count для '{template_id}' должен быть больше нуля.")
+        if row_count > MAX_GENERATE_ROWS_PER_FILE:
+            raise GenerationError(
+                f"row_count для '{template_id}' превышает безопасный лимит {MAX_GENERATE_ROWS_PER_FILE}.",
+                details={
+                    "template_id": template_id,
+                    "row_count": row_count,
+                    "max_rows_per_file": MAX_GENERATE_ROWS_PER_FILE,
+                },
+            )
+        total_rows += row_count
+
+    if total_rows > MAX_GENERATE_TOTAL_ROWS:
+        raise GenerationError(
+            f"Суммарное число строк превышает безопасный лимит {MAX_GENERATE_TOTAL_ROWS}.",
+            details={
+                "total_rows": total_rows,
+                "max_total_rows": MAX_GENERATE_TOTAL_ROWS,
+            },
+        )
+
+
 def generate_csv_use_case(
     items: list[dict[str, int]],
     *,
@@ -95,6 +126,8 @@ def generate_csv_use_case(
     """
     if not items:
         raise GenerationError("Нужно передать хотя бы один элемент генерации.")
+
+    _validate_generation_volume(items)
 
     seen: set[str] = set()
     for item in items:

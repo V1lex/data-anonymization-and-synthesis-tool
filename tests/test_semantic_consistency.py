@@ -3,6 +3,7 @@ import io
 from collections import Counter
 from datetime import datetime
 
+from sda.core.generation.validators import STREET_LINES
 from sda.core.similar.postprocess import postprocess_similar_rows
 from sda.use_cases.generate_csv import generate_csv_use_case
 
@@ -65,6 +66,33 @@ def test_generate_semantics_keep_city_separate_from_address_and_reduce_very_old_
 
     births_in_1940s = sum(1 for row in users if datetime.fromisoformat(row["birth_date"]).year < 1950)
     assert births_in_1940s <= 8
+
+
+def test_generate_semantics_use_consistent_street_forms_in_addresses() -> None:
+    result = generate_csv_use_case(
+        [
+            {"template_id": "users", "row_count": 300},
+        ],
+        locale="ru_RU",
+    )
+
+    users = _decode_generated_rows(result, "users")
+    street_lines = set(STREET_LINES["ru_RU"])
+
+    for row in users:
+        address = row["address"]
+        assert "  " not in address
+        assert any(street_line in address for street_line in street_lines)
+        assert not any(
+            bad_fragment in address
+            for bad_fragment in (
+                "пр-т Лесная",
+                "пр-т Садовая",
+                "пер. Гагарина",
+                "бул. Лесная",
+                "ш. Садовая",
+            )
+        )
 
 
 def test_generate_semantics_depend_on_locale_for_currency_distribution() -> None:

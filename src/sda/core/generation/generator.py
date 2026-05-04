@@ -66,6 +66,7 @@ class DataGenerator:
             raise GenerationError(f"Неподдерживаемый template_id: '{template_id}'")
 
         template = self.load_template(template_id)
+        self._validate_template_columns(template_id, template)
         rows: list[dict[str, object]] = []
 
         for _ in range(count):
@@ -115,7 +116,6 @@ class DataGenerator:
         row: dict[str, object] = {}
 
         for column in template["columns"]:
-            self._validate_column_config(template_id, column)
             value = self._generate_column_value(template_id=template_id, column=column)
             row[column["name"]] = value
 
@@ -129,7 +129,6 @@ class DataGenerator:
         row: dict[str, object] = {}
 
         for column in template["columns"]:
-            self._validate_column_config("payments", column)
             column_name = column["name"]
 
             if column_name == "order_id":
@@ -247,6 +246,10 @@ class DataGenerator:
             f"Неподдерживаемая ссылка на контекст '{ref}' "
             f"для колонки '{column['name']}' в шаблоне '{template_id}'"
         )
+
+    def _validate_template_columns(self, template_id: str, template: dict) -> None:
+        for column in template["columns"]:
+            self._validate_column_config(template_id, column)
 
     def _validate_column_config(self, template_id: str, column: dict) -> None:
         if not isinstance(column, dict):
