@@ -23,10 +23,16 @@ import { downloadBase64File } from "@/lib/download";
 const copy = {
   ru: {
     eyebrow: "Similar",
-    title: "Загружайте произвольный CSV и получайте похожий синтетический датасет.",
+    title: "Создайте похожие синтетические данные из CSV",
     description: "",
-    analyze: "Загрузить и проанализировать CSV",
-    analyzeMulti: "Загрузить связный датасет",
+    singleModeTitle: "Одиночная таблица",
+    singleModeDescription: "Один CSV без связей с другими таблицами. Подходит для быстрых похожих выборок.",
+    multiModeTitle: "Набор связанных таблиц",
+    multiModeDescription: "От 2 до 5 CSV. Система попробует определить ключи и сохранить связи между таблицами.",
+    choose: "Выбрать",
+    back: "Назад",
+    analyze: "Загрузить таблицу",
+    analyzeMulti: "Загрузить набор таблиц",
     uploadLimit: "Максимальный размер файла: 5 МБ",
     multiUploadLimit: "От 2 до 5 CSV, каждый до 5 МБ",
     run: "Сгенерировать похожий CSV",
@@ -49,10 +55,16 @@ const copy = {
   },
   en: {
     eyebrow: "Similar",
-    title: "Upload any CSV and produce a similar synthetic dataset.",
+    title: "Create similar synthetic data from CSV",
     description: "",
-    analyze: "Upload and analyze CSV",
-    analyzeMulti: "Upload related dataset",
+    singleModeTitle: "Standalone table",
+    singleModeDescription: "One CSV without relationships to other tables. Best for quick similar samples.",
+    multiModeTitle: "Related table set",
+    multiModeDescription: "From 2 to 5 CSV files. The system tries to detect keys and preserve relationships.",
+    choose: "Choose",
+    back: "Back",
+    analyze: "Upload table",
+    analyzeMulti: "Upload table set",
     uploadLimit: "Maximum file size: 5 MB",
     multiUploadLimit: "From 2 to 5 CSV files, 5 MB each",
     run: "Generate similar CSV",
@@ -74,6 +86,8 @@ const copy = {
     multiFileCount: "Upload at least two and at most five CSV files.",
   },
 } as const;
+
+type SimilarMode = "single" | "multi";
 
 function localizeSummaryItem(item: string, language: "ru" | "en") {
   if (language === "ru") {
@@ -101,6 +115,8 @@ function localizeSummaryItem(item: string, language: "ru" | "en") {
 export function SimilarFlow() {
   const { language } = useLanguage();
   const t = copy[language];
+  const [pendingMode, setPendingMode] = useState<SimilarMode>("single");
+  const [selectedMode, setSelectedMode] = useState<SimilarMode | null>(null);
   const [analysis, setAnalysis] = useState<SimilarAnalyzeResponse | null>(null);
   const [result, setResult] = useState<SimilarRunResponse | null>(null);
   const [multiAnalysis, setMultiAnalysis] = useState<SimilarMultiAnalyzeResponse | null>(null);
@@ -150,6 +166,27 @@ export function SimilarFlow() {
     } finally {
       setIsAnalyzing(false);
     }
+  };
+
+  const resetFlowState = () => {
+    setError(null);
+    setMultiError(null);
+    setAnalysis(null);
+    setResult(null);
+    setMultiAnalysis(null);
+    setMultiResult(null);
+    setIsPreviewOpen(false);
+    setOpenTableName(null);
+  };
+
+  const selectMode = () => {
+    setSelectedMode(pendingMode);
+    resetFlowState();
+  };
+
+  const goBackToModeSelection = () => {
+    setSelectedMode(null);
+    resetFlowState();
   };
 
   const handleMultiAnalyze = async (files: FileList | null) => {
@@ -231,25 +268,90 @@ export function SimilarFlow() {
         {t.description ? <p>{t.description}</p> : null}
       </section>
 
-      <section className="page-container similar-mode-grid">
-        <div className="tool-surface similar-mode-card">
-          {!analysis ? (
-            <label className="upload-dropzone">
-              <input type="file" accept=".csv,text/csv" onChange={(event) => void handleAnalyze(event.target.files?.[0] ?? null)} />
-              <span>{t.analyze}</span>
-              <small className="upload-dropzone__hint">{t.uploadLimit}</small>
-            </label>
-          ) : (
-            <div className="surface-topbar">
-              <div className="surface-meta surface-meta--compact">
-                <span>{analysis.file_name}</span>
+      {!selectedMode ? (
+        <section className="page-container similar-mode-grid">
+          <button
+            type="button"
+            className={`tool-surface similar-mode-card similar-choice-card${pendingMode === "single" ? " is-active" : ""}`}
+            onClick={() => setPendingMode("single")}
+          >
+            <span className="field-label">{t.singleModeTitle}</span>
+            <span className="csv-file-visual csv-file-visual--single" aria-hidden="true">
+              <span className="csv-file csv-file--blue">
+                <span />
+                <span />
+                <span />
+                <strong>CSV</strong>
+              </span>
+            </span>
+            <p>{t.singleModeDescription}</p>
+          </button>
+          <button
+            type="button"
+            className={`tool-surface similar-mode-card similar-choice-card${pendingMode === "multi" ? " is-active" : ""}`}
+            onClick={() => setPendingMode("multi")}
+          >
+            <span className="field-label">{t.multiModeTitle}</span>
+            <span className="csv-file-visual csv-file-visual--multi" aria-hidden="true">
+              <span className="csv-file csv-file--blue">
+                <span />
+                <span />
+                <span />
+                <strong>CSV</strong>
+              </span>
+              <span className="csv-file csv-file--green">
+                <span />
+                <span />
+                <span />
+                <strong>CSV</strong>
+              </span>
+              <span className="csv-file csv-file--pink">
+                <span />
+                <span />
+                <span />
+                <strong>CSV</strong>
+              </span>
+            </span>
+            <p>{t.multiModeDescription}</p>
+          </button>
+          <div className="similar-mode-actions">
+            <button type="button" className="button button--primary" onClick={selectMode}>
+              {t.choose}
+            </button>
+          </div>
+        </section>
+      ) : null}
+
+      {selectedMode === "single" ? (
+        <section className="page-container tool-layout">
+          <div className="tool-surface">
+            {!analysis ? (
+              <>
+                <div className="surface-topbar">
+                  <button type="button" className="surface-topbar__action surface-topbar__button" onClick={goBackToModeSelection}>
+                    {t.back}
+                  </button>
+                </div>
+                <label className="upload-dropzone">
+                  <input type="file" accept=".csv,text/csv" onChange={(event) => void handleAnalyze(event.target.files?.[0] ?? null)} />
+                  <span>{t.analyze}</span>
+                  <small className="upload-dropzone__hint">{t.uploadLimit}</small>
+                </label>
+              </>
+            ) : (
+              <div className="surface-topbar">
+                <div className="surface-meta surface-meta--compact">
+                  <span>{analysis.file_name}</span>
+                </div>
+                <label className="surface-topbar__action">
+                  <input type="file" accept=".csv,text/csv" onChange={(event) => void handleAnalyze(event.target.files?.[0] ?? null)} />
+                  <span>{language === "ru" ? "Загрузить другой файл" : "Upload another file"}</span>
+                </label>
+                <button type="button" className="surface-topbar__action surface-topbar__button" onClick={goBackToModeSelection}>
+                  {t.back}
+                </button>
               </div>
-              <label className="surface-topbar__action">
-                <input type="file" accept=".csv,text/csv" onChange={(event) => void handleAnalyze(event.target.files?.[0] ?? null)} />
-                <span>{language === "ru" ? "Загрузить другой файл" : "Upload another file"}</span>
-              </label>
-            </div>
-          )}
+            )}
 
           {error ? <p className="surface-error">{error}</p> : null}
 
@@ -338,37 +440,51 @@ export function SimilarFlow() {
               </button>
             </article>
           ) : null}
-        </div>
+          </div>
+        </section>
+      ) : null}
 
-        <div className="tool-surface similar-mode-card">
-          {!multiAnalysis ? (
-            <label className="upload-dropzone">
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                multiple
-                onChange={(event) => void handleMultiAnalyze(event.target.files)}
-              />
-              <span>{t.analyzeMulti}</span>
-              <small className="upload-dropzone__hint">{t.multiUploadLimit}</small>
-            </label>
-          ) : (
-            <div className="surface-topbar">
-              <div className="surface-meta surface-meta--compact">
-                <span>{multiAnalysis.table_count} {t.tables}</span>
-                <span>{multiAnalysis.relationships.length} {t.relationships}</span>
+      {selectedMode === "multi" ? (
+        <section className="page-container tool-layout">
+          <div className="tool-surface">
+            {!multiAnalysis ? (
+              <>
+                <div className="surface-topbar">
+                  <button type="button" className="surface-topbar__action surface-topbar__button" onClick={goBackToModeSelection}>
+                    {t.back}
+                  </button>
+                </div>
+                <label className="upload-dropzone">
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    multiple
+                    onChange={(event) => void handleMultiAnalyze(event.target.files)}
+                  />
+                  <span>{t.analyzeMulti}</span>
+                  <small className="upload-dropzone__hint">{t.multiUploadLimit}</small>
+                </label>
+              </>
+            ) : (
+              <div className="surface-topbar">
+                <div className="surface-meta surface-meta--compact">
+                  <span>{multiAnalysis.table_count} {t.tables}</span>
+                  <span>{multiAnalysis.relationships.length} {t.relationships}</span>
+                </div>
+                <label className="surface-topbar__action">
+                  <input
+                    type="file"
+                    accept=".csv,text/csv"
+                    multiple
+                    onChange={(event) => void handleMultiAnalyze(event.target.files)}
+                  />
+                  <span>{language === "ru" ? "Загрузить другой датасет" : "Upload another dataset"}</span>
+                </label>
+                <button type="button" className="surface-topbar__action surface-topbar__button" onClick={goBackToModeSelection}>
+                  {t.back}
+                </button>
               </div>
-              <label className="surface-topbar__action">
-                <input
-                  type="file"
-                  accept=".csv,text/csv"
-                  multiple
-                  onChange={(event) => void handleMultiAnalyze(event.target.files)}
-                />
-                <span>{language === "ru" ? "Загрузить другой датасет" : "Upload another dataset"}</span>
-              </label>
-            </div>
-          )}
+            )}
 
           {multiError ? <p className="surface-error">{multiError}</p> : null}
 
@@ -481,8 +597,9 @@ export function SimilarFlow() {
               </button>
             </article>
           ) : null}
-        </div>
-      </section>
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }
