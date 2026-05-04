@@ -2452,14 +2452,24 @@ html[lang="ru"] .knowledge-section__header h2 {
 }
 
 .input-block--wide {
-  max-width: 360px;
+  max-width: 640px;
   width: 100%;
   margin-top: 28px;
 }
 
+.input-block--wide .field-label {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  text-align: center;
+}
+
 .input-block__hint {
+  display: block;
   font-size: 0.88rem;
   line-height: 1.45;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .tool-action {
@@ -2809,6 +2819,10 @@ html[lang="ru"] .knowledge-section__header h2 {
   .row-stepper__input {
     grid-column: 1 / -1;
     order: -1;
+  }
+
+  .input-block__hint {
+    white-space: normal;
   }
 }
 

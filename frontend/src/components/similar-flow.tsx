@@ -44,7 +44,7 @@ const copy = {
     rows: "строк",
     columns: "колонок",
     tables: "таблиц",
-    relationships: "связей",
+    relationships: "связи",
     result: "Результат",
     totalRows: "Всего строк",
     totalColumns: "Всего колонок",
@@ -54,7 +54,7 @@ const copy = {
     noRelationships: "Связи не найдены",
     targetRows: "Строк в результате",
     scale: "Размер датасета",
-    scaleHint: "1 — примерно как исходные CSV, 2 — примерно в два раза больше.",
+    scaleHint: "Можно от 0.1 до 5. 1 — как исходные CSV, 2 — в два раза больше.",
     unique: "уникальных",
     analysisFailed: "Не удалось выполнить анализ.",
     synthesisFailed: "Не удалось сгенерировать результат.",
@@ -93,7 +93,7 @@ const copy = {
     noRelationships: "No relationships detected",
     targetRows: "Rows in result",
     scale: "Dataset size",
-    scaleHint: "1 keeps roughly the original size, 2 makes it about twice as large.",
+    scaleHint: "Allowed range: 0.1 to 5. 1 keeps the original size, 2 doubles it.",
     unique: "unique",
     analysisFailed: "Analysis failed.",
     synthesisFailed: "Synthesis failed.",
@@ -102,6 +102,27 @@ const copy = {
 } as const;
 
 type SimilarMode = "single" | "multi";
+
+const MIN_MULTI_SCALE = 0.1;
+const MAX_MULTI_SCALE = 5;
+
+function normalizeMultiScale(value: string) {
+  const normalizedValue = value.trim().replace(",", ".");
+  if (normalizedValue === "") {
+    return 1;
+  }
+
+  const parsed = Number(normalizedValue);
+  if (!Number.isFinite(parsed)) {
+    return 1;
+  }
+
+  return Math.min(MAX_MULTI_SCALE, Math.max(MIN_MULTI_SCALE, parsed));
+}
+
+function formatMultiScale(value: number) {
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
+}
 
 function localizeSummaryItem(item: string, language: "ru" | "en") {
   if (language === "ru") {
@@ -157,7 +178,7 @@ export function SimilarFlow() {
   const [multiAnalysis, setMultiAnalysis] = useState<SimilarMultiAnalyzeResponse | null>(null);
   const [multiResult, setMultiResult] = useState<SimilarMultiRunResponse | null>(null);
   const [targetRows, setTargetRows] = useState(500);
-  const [scale, setScale] = useState(1);
+  const [scaleInput, setScaleInput] = useState("1");
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [openTableName, setOpenTableName] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -242,7 +263,7 @@ export function SimilarFlow() {
       const response = await analyzeMultiTableSimilarFiles(selectedFiles, { previewRowsLimit: 5 });
       setMultiAnalysis(response);
       setOpenTableName(response.tables[0]?.table_name ?? null);
-      setScale(1);
+      setScaleInput("1");
     } catch (caught) {
       setMultiError(caught instanceof ApiError ? caught.message : t.analysisFailed);
     } finally {
@@ -276,13 +297,15 @@ export function SimilarFlow() {
       return;
     }
 
+    const normalizedScale = normalizeMultiScale(scaleInput);
+    setScaleInput(formatMultiScale(normalizedScale));
     setIsMultiRunning(true);
     setMultiError(null);
 
     try {
       const response = await runMultiTableSimilar({
         analysis_id: multiAnalysis.analysis_id,
-        scale,
+        scale: normalizedScale,
       });
       setMultiResult(response);
     } catch (caught) {
@@ -646,13 +669,18 @@ export function SimilarFlow() {
                 <span className="field-label">{t.scale}</span>
                 <input
                   type="number"
-                  min={0.1}
-                  max={5}
-                  step={0.1}
-                  value={scale}
+                  min={MIN_MULTI_SCALE}
+                  max={MAX_MULTI_SCALE}
+                  step="0.1"
+                  value={scaleInput}
                   onChange={(event) => {
                     setMultiResult(null);
-                    setScale(Math.min(5, Math.max(0.1, Number(event.target.value) || 1)));
+                    const nextValue = event.target.value;
+                    setScaleInput(nextValue);
+                  }}
+                  onBlur={() => {
+                    const normalizedScale = normalizeMultiScale(scaleInput);
+                    setScaleInput(formatMultiScale(normalizedScale));
                   }}
                 />
                 <small className="input-block__hint">{t.scaleHint}</small>
