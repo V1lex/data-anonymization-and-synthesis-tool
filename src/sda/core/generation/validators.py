@@ -288,7 +288,7 @@ PRODUCT_NAME_POOLS = {
             "Premium debit card",
             "Investment portfolio",
             "Customer scoring service",
-            "Currency control package",
+            "Orders consistency check",
             "Financial analytics subscription",
         ],
         "shops": [
@@ -393,7 +393,7 @@ def _adjust_orders(
     locale: str,
     seeded_random: Random,
 ) -> None:
-    if not orders or not _has_columns(orders, {"user_id", "order_date", "amount", "currency"}):
+    if not orders or not _has_columns(orders, {"user_id", "order_date", "amount"}):
         return
 
     registration_by_user_id = {
@@ -401,7 +401,6 @@ def _adjust_orders(
         for row in users
         if row.get("user_id") is not None and row.get("registration_date")
     }
-    currency_weights = [("USD", 0.72), ("RUB", 0.28)] if locale == "en_US" else [("RUB", 0.75), ("USD", 0.25)]
 
     for row in orders:
         user_id = int(row["user_id"])
@@ -412,7 +411,6 @@ def _adjust_orders(
             max_date=_utc_now(),
         ).isoformat()
         row["amount"] = _sample_order_quantity(seeded_random)
-        row["currency"] = _weighted_choice(seeded_random, currency_weights)
 
 
 def _adjust_payments(payments: list[dict[str, object]], *, seeded_random: Random) -> None:

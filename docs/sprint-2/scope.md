@@ -31,7 +31,6 @@
 - `product_id`
 - `amount`
 - `order_date`
-- `currency`
 
 3. `payments.csv`
 - `payment_id`

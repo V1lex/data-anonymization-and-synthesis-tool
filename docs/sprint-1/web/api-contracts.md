@@ -88,8 +88,7 @@
         "user_id",
         "product_id",
         "amount",
-        "order_date",
-        "currency"
+        "order_date"
       ]
     },
     {

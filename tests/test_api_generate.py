@@ -39,7 +39,6 @@ def test_get_generate_templates_returns_catalog() -> None:
         "product_id",
         "amount",
         "order_date",
-        "currency",
     ]
 
 

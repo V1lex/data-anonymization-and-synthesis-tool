@@ -366,7 +366,7 @@
 - Что это: шаблон таблицы платежей.
 - Для чего нужен: генерация `payments.csv` для сценариев с транзакциями.
 - Что добавить дальше:
-  - колонки (`payment_id`, `order_id`, `amount`, `currency`, `status`, `created_at`),
+  - колонки (`payment_id`, `order_id`, `amount`, `status`, `created_at`),
   - правила связей с `orders`.
 
 #### `src/sda/resources/templates/products.json`
@@ -520,7 +520,7 @@
 1. `Generate`: выбор одной/нескольких таблиц, выбор количества строк, скачивание CSV.
 Таблицы и колонки:
 - `users.csv`: `user_id`, `full_name`, `email`, `phone`, `city`, `address`, `birth_date`, `registration_date`.
-- `orders.csv`: `order_id`, `user_id`, `product_id`, `amount`, `order_date`, `currency`.
+- `orders.csv`: `order_id`, `user_id`, `product_id`, `amount`, `order_date`.
 - `payments.csv`: `payment_id`, `order_id`, `user_id`, `status`.
 - `products.csv`: `product_id`, `name`, `price`.
 - `support_tickets.csv`: `ticket_id`, `user_id`, `created_at`, `message`, `status`, `priority`, `operator_name`.

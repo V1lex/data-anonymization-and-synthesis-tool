@@ -71,7 +71,7 @@ FULL_NAME_TOKENS = {"full_name", "name", "first_name", "last_name", "surname", "
 ADDRESS_NAME_TOKENS = {"address", "street", "location", "addr", "адрес", "улица", "street_address"}
 CITY_NAME_TOKENS = {"city", "town", "город"}
 IDENTIFIER_NAME_TOKENS = {"id", "uuid", "guid", "ref", "reference", "code", "identifier", "account", "invoice", "order_no", "sku", "article", "ticket_no", "номер"}
-CATEGORY_NAME_TOKENS = {"status", "state", "priority", "type", "category", "role", "currency", "country", "region", "segment"}
+CATEGORY_NAME_TOKENS = {"status", "state", "priority", "type", "category", "role", "country", "region", "segment"}
 TEXT_NAME_TOKENS = {"message", "comment", "description", "note", "text", "details", "reason", "body", "content"}
 
 
