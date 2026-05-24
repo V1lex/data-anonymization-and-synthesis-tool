@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from sda.core.anonymization.field_detector import FieldDetection
 from sda.core.anonymization.rules import AnonymizationMethod
 
-SAFE_CATEGORY_TOKENS = {"status", "state", "priority", "type", "category", "currency", "country", "region", "city", "segment"}
+SAFE_CATEGORY_TOKENS = {"status", "state", "priority", "type", "category", "country", "region", "city", "segment"}
 FREE_TEXT_TOKENS = {"message", "comment", "description", "note", "text", "details", "reason", "body", "content"}
 
 

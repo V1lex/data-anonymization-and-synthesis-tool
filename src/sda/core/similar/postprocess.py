@@ -18,8 +18,6 @@ def postprocess_similar_rows(
     _apply_ticket_constraints(rows, normalized_header, seeded_random)
     _apply_payment_constraints(rows, normalized_header, seeded_random)
     _apply_quantity_constraints(rows, normalized_header, seeded_random)
-    if _apply_currency_price_constraints(rows, normalized_header):
-        warnings.append("К полям currency/price применена пост-обработка для более правдоподобных значений.")
 
     return rows, warnings
 
@@ -108,33 +106,6 @@ def _apply_quantity_constraints(rows: list[dict[str, str]], header_map: dict[str
                 [(1, 0.56), (2, 0.2), (3, 0.1), (4, 0.06), (5, 0.04), (6, 0.02), (10, 0.015), (20, 0.005)],
             )
         )
-
-
-def _apply_currency_price_constraints(rows: list[dict[str, str]], header_map: dict[str, str]) -> bool:
-    currency_key = _find_column(header_map, ("currency",))
-    price_key = _find_column(header_map, ("price", "cost", "total"))
-    if currency_key is None or price_key is None:
-        return False
-
-    changed = False
-    for row in rows:
-        currency = row.get(currency_key, "").strip().upper()
-        price = row.get(price_key, "").strip().replace(",", ".")
-        if currency not in {"RUB", "USD"}:
-            continue
-        try:
-            numeric_price = float(price)
-        except ValueError:
-            continue
-
-        if currency == "USD" and numeric_price > 2000:
-            row[price_key] = _format_number(max(5.0, numeric_price / 80.0))
-            changed = True
-        elif currency == "RUB" and numeric_price < 100:
-            row[price_key] = _format_number(max(100.0, numeric_price * 80.0))
-            changed = True
-
-    return changed
 
 
 def _find_column(header_map: dict[str, str], candidates: tuple[str, ...]) -> str | None:
