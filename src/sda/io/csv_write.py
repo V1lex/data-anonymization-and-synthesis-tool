@@ -61,4 +61,7 @@ def write_csv(
             raise GenerationError("Невозможно определить заголовок CSV для пустых строк.")
         header = list(rows[0].keys())
 
-    return _build_csv_text(rows, delimiter=delimiter, fieldnames=header).encode(encoding)
+    try:
+        return _build_csv_text(rows, delimiter=delimiter, fieldnames=header).encode(encoding)
+    except (LookupError, UnicodeEncodeError) as exc:
+        raise GenerationError("Не удалось закодировать CSV.") from exc
